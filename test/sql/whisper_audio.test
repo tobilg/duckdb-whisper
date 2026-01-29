@@ -1,0 +1,36 @@
+# name: test/sql/whisper_audio.test
+# description: Test whisper audio utility functions
+# group: [whisper]
+
+require whisper
+
+# Test whisper_check_audio with valid file
+query I
+SELECT whisper_check_audio('test/data/test_english.wav');
+----
+OK
+
+# Test whisper_check_audio with invalid file
+query I
+SELECT whisper_check_audio('nonexistent_file.wav') LIKE 'Error:%';
+----
+true
+
+# Test whisper_audio_info returns correct metadata
+query IIIIII
+SELECT
+    file_path LIKE '%test_english.wav',
+    duration_seconds > 10 AND duration_seconds < 12,
+    sample_rate,
+    channels,
+    format,
+    file_size > 300000
+FROM whisper_audio_info('test/data/test_english.wav');
+----
+true	true	16000	1	wav	true
+
+# Test whisper_audio_info fails gracefully on invalid file
+statement error
+SELECT * FROM whisper_audio_info('nonexistent_file.wav');
+----
+Failed to read audio info

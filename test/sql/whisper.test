@@ -1,0 +1,24 @@
+# name: test/sql/whisper.test
+# description: Basic tests for whisper extension
+# group: [whisper]
+
+# Before we load the extension, this will fail
+statement error
+SELECT whisper_version();
+----
+Catalog Error: Scalar Function with name whisper_version does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require whisper
+
+# Test whisper_version function returns expected format
+query I
+SELECT whisper_version() LIKE 'whisper extension v%';
+----
+true
+
+# Test whisper_version contains whisper.cpp version
+query I
+SELECT whisper_version() LIKE '%whisper.cpp:%';
+----
+true

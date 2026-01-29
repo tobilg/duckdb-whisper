@@ -1,0 +1,72 @@
+# name: test/sql/whisper_transcribe.test
+# description: Test whisper transcription functions
+# group: [whisper]
+
+# Note: These tests require the tiny.en model to be downloaded
+# Download with: curl -L -o ~/.duckdb/whisper/models/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+
+require whisper
+
+# Skip if model not downloaded (check via list_models)
+require-env WHISPER_TEST_MODEL
+
+# Test whisper_transcribe returns text
+query I
+SELECT LENGTH(whisper_transcribe('test/data/test_english.wav', 'tiny.en')) > 50;
+----
+true
+
+# Test transcription contains expected words (JFK speech)
+query I
+SELECT whisper_transcribe('test/data/test_english.wav', 'tiny.en') LIKE '%Americans%';
+----
+true
+
+query I
+SELECT whisper_transcribe('test/data/test_english.wav', 'tiny.en') LIKE '%country%';
+----
+true
+
+# Test whisper_transcribe_segments returns multiple segments
+query I
+SELECT COUNT(*) >= 1 FROM whisper_transcribe_segments('test/data/test_english.wav', 'tiny.en');
+----
+true
+
+# Test whisper_transcribe_segments returns expected columns
+query IIIIII
+SELECT
+    segment_id >= 0,
+    start_time >= 0,
+    end_time > start_time,
+    LENGTH(text) > 0,
+    confidence >= 0 AND confidence <= 1,
+    LENGTH(language) > 0
+FROM whisper_transcribe_segments('test/data/test_english.wav', 'tiny.en')
+LIMIT 1;
+----
+true	true	true	true	true	true
+
+# Test invalid file path fails
+statement error
+SELECT whisper_transcribe('nonexistent_file.wav', 'tiny.en');
+----
+Failed to load audio
+
+# Test invalid model fails
+statement error
+SELECT whisper_transcribe('test/data/test_english.wav', 'invalid_model');
+----
+Failed to load whisper model
+
+# Test translation with English-only model fails
+statement error
+SELECT whisper_translate('test/data/test_english.wav', 'tiny.en');
+----
+Translation requires a multilingual model
+
+# Test transcribe_segments with translate=true and English-only model fails
+statement error
+SELECT * FROM whisper_transcribe_segments('test/data/test_english.wav', 'tiny.en', 'auto', true);
+----
+Translation requires a multilingual model

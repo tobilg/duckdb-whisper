@@ -1,0 +1,39 @@
+# name: test/sql/whisper_models.test
+# description: Test whisper model management functions
+# group: [whisper]
+
+require whisper
+
+# Test whisper_list_models returns all expected models
+query I
+SELECT COUNT(*) FROM whisper_list_models();
+----
+12
+
+# Test whisper_list_models returns expected columns for tiny.en
+query IIII
+SELECT name, is_downloaded IS NOT NULL, description LIKE '%model%', file_path LIKE '%ggml-%'
+FROM whisper_list_models()
+WHERE name = 'tiny.en';
+----
+tiny.en	true	true	true
+
+# Test all model names are valid
+query I
+SELECT COUNT(*) FROM whisper_list_models()
+WHERE name IN ('tiny', 'tiny.en', 'base', 'base.en', 'small', 'small.en',
+               'medium', 'medium.en', 'large-v1', 'large-v2', 'large-v3', 'large-v3-turbo');
+----
+12
+
+# Test that invalid model name is rejected for download
+statement error
+SELECT whisper_download_model('invalid_model_name');
+----
+Invalid model name
+
+# Test that invalid model name is rejected for delete
+statement error
+SELECT whisper_delete_model('invalid_model_name');
+----
+Invalid model name
