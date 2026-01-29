@@ -8,22 +8,22 @@
 namespace duckdb {
 
 struct HttpResponse {
-    bool success = false;
-    std::string body;
-    std::string error;
-    long status_code = 0;
+	bool success = false;
+	std::string body;
+	std::string error;
+	long status_code = 0;
 };
 
 class HttpClient {
 public:
-    HttpClient();
-    ~HttpClient();
+	HttpClient();
+	~HttpClient();
 
-    // Perform HTTP POST with JSON body
-    HttpResponse Post(const std::string &url, const std::string &json_body, int32_t timeout_seconds = 30);
+	// Perform HTTP POST with JSON body
+	HttpResponse Post(const std::string &url, const std::string &json_body, int32_t timeout_seconds = 30);
 
 private:
-    void *curl_handle;
+	void *curl_handle;
 };
 
 // JSON helpers (no external library dependency)

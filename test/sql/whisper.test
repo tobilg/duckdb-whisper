@@ -1,6 +1,6 @@
 # name: test/sql/whisper.test
 # description: Basic tests for whisper extension
-# group: [whisper]
+# group: [sql]
 
 # Before we load the extension, this will fail
 statement error

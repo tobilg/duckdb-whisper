@@ -1,6 +1,6 @@
 # name: test/sql/whisper_voice_query.test
 # description: Tests for voice-to-SQL feature
-# group: [whisper]
+# group: [sql]
 
 require whisper
 

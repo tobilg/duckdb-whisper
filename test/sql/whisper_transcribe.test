@@ -1,6 +1,6 @@
 # name: test/sql/whisper_transcribe.test
 # description: Test whisper transcription functions
-# group: [whisper]
+# group: [sql]
 
 # Note: These tests require the tiny.en model to be downloaded
 # Download with: curl -L -o ~/.duckdb/whisper/models/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin

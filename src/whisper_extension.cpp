@@ -30,42 +30,42 @@ void RegisterVoiceQueryFunctions(ExtensionLoader &loader);
 
 static void LoadInternal(ExtensionLoader &loader) {
 #ifdef WHISPER_ENABLE_VOICE_QUERY
-    // Initialize libcurl globally (required before any curl operations)
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+	// Initialize libcurl globally (required before any curl operations)
+	curl_global_init(CURL_GLOBAL_DEFAULT);
 #endif
 
-    // Register configuration settings FIRST
-    WhisperConfigManager::RegisterSettings(loader.GetDatabaseInstance());
+	// Register configuration settings FIRST
+	WhisperConfigManager::RegisterSettings(loader.GetDatabaseInstance());
 
-    // Register all functions
-    RegisterModelFunctions(loader);
-    RegisterTranscribeScalarFunctions(loader);
-    RegisterTranscribeTableFunctions(loader);
-    RegisterUtilityFunctions(loader);
+	// Register all functions
+	RegisterModelFunctions(loader);
+	RegisterTranscribeScalarFunctions(loader);
+	RegisterTranscribeTableFunctions(loader);
+	RegisterUtilityFunctions(loader);
 
 #ifdef WHISPER_ENABLE_RECORDING
-    RegisterRecordFunctions(loader);
+	RegisterRecordFunctions(loader);
 #endif
 
 #ifdef WHISPER_ENABLE_VOICE_QUERY
-    RegisterVoiceToSqlFunction(loader);
-    RegisterVoiceQueryFunctions(loader);
+	RegisterVoiceToSqlFunction(loader);
+	RegisterVoiceQueryFunctions(loader);
 #endif
 }
 
 void WhisperExtension::Load(ExtensionLoader &loader) {
-    LoadInternal(loader);
+	LoadInternal(loader);
 }
 
 std::string WhisperExtension::Name() {
-    return "whisper";
+	return "whisper";
 }
 
 std::string WhisperExtension::Version() const {
 #ifdef EXT_VERSION_WHISPER
-    return EXT_VERSION_WHISPER;
+	return EXT_VERSION_WHISPER;
 #else
-    return "0.1.0";
+	return "0.1.0";
 #endif
 }
 
@@ -74,6 +74,6 @@ std::string WhisperExtension::Version() const {
 extern "C" {
 
 DUCKDB_CPP_EXTENSION_ENTRY(whisper, loader) {
-    duckdb::LoadInternal(loader);
+	duckdb::LoadInternal(loader);
 }
 }

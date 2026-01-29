@@ -1,6 +1,6 @@
 # name: test/sql/whisper_models.test
 # description: Test whisper model management functions
-# group: [whisper]
+# group: [sql]
 
 require whisper
 
