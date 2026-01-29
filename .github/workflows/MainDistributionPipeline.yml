@@ -17,9 +17,10 @@ jobs:
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@v1.4.4
     with:
       duckdb_version: v1.4.4
-      ci_tools_version: v1.4.4
+      ci_tools_version: add-nasm
       extension_name: whisper
       exclude_archs: 'linux_amd64_musl;wasm_mvp;wasm_eh;wasm_threads'
+      override_ci_tools_repository: tobilg/extension-ci-tools
 
   code-quality-check:
     name: Code Quality Check
