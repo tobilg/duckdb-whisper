@@ -1,8 +1,14 @@
 {
 	"dependencies": [
-		"ffmpeg",
-		"sdl2",
-		"curl"
+		"curl",
+		{
+			"name": "ffmpeg",
+			"platform": "osx"
+		},
+		{
+			"name": "sdl2",
+			"platform": "osx"
+		}
 	],
 	"vcpkg-configuration": {
 		"overlay-ports": [
