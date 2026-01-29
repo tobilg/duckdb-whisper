@@ -27,15 +27,25 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
     libavutil
 )
 
-# Find SDL2 if recording is enabled (via vcpkg)
+# Find SDL2 if recording is enabled
+# Try CMake find_package first (vcpkg), then fall back to pkg-config (system packages)
 if(WHISPER_ENABLE_RECORDING)
     find_package(SDL2 QUIET)
-    if(SDL2_FOUND)
-        message(STATUS "SDL2 found - audio recording enabled")
+    if(TARGET SDL2::SDL2)
+        message(STATUS "SDL2 found via CMake - audio recording enabled")
         add_definitions(-DWHISPER_ENABLE_RECORDING)
+        set(SDL2_LINK_TARGET SDL2::SDL2)
     else()
-        message(WARNING "SDL2 not found - audio recording disabled. Install via vcpkg or set -DWHISPER_ENABLE_RECORDING=OFF")
-        set(WHISPER_ENABLE_RECORDING OFF)
+        # Try pkg-config for system-installed SDL2
+        pkg_check_modules(SDL2 IMPORTED_TARGET sdl2)
+        if(SDL2_FOUND)
+            message(STATUS "SDL2 found via pkg-config - audio recording enabled")
+            add_definitions(-DWHISPER_ENABLE_RECORDING)
+            set(SDL2_LINK_TARGET PkgConfig::SDL2)
+        else()
+            message(WARNING "SDL2 not found - audio recording disabled. Install SDL2 or set -DWHISPER_ENABLE_RECORDING=OFF")
+            set(WHISPER_ENABLE_RECORDING OFF)
+        endif()
     endif()
 endif()
 
@@ -122,8 +132,8 @@ target_link_libraries(${LOADABLE_EXTENSION_NAME}
 
 # Link SDL2 if recording is enabled
 if(WHISPER_ENABLE_RECORDING)
-    target_link_libraries(${EXTENSION_NAME} SDL2::SDL2)
-    target_link_libraries(${LOADABLE_EXTENSION_NAME} SDL2::SDL2)
+    target_link_libraries(${EXTENSION_NAME} ${SDL2_LINK_TARGET})
+    target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SDL2_LINK_TARGET})
 endif()
 
 # Link libcurl if voice query is enabled
