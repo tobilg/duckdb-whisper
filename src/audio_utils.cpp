@@ -6,10 +6,19 @@ extern "C" {
 #include <libswresample/swresample.h>
 #include <libavutil/opt.h>
 #include <libavutil/channel_layout.h>
+#include <libavutil/version.h>
 }
 
 #include <fstream>
 #include <cstring>
+
+// Check for new channel layout API (FFmpeg 5.1+, libavutil >= 57.28.100)
+// The new API uses AVChannelLayout struct and swr_alloc_set_opts2
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100)
+#define FFMPEG_NEW_CHANNEL_API 1
+#else
+#define FFMPEG_NEW_CHANNEL_API 0
+#endif
 
 namespace duckdb {
 
@@ -81,6 +90,7 @@ bool AudioUtils::LoadAudioFile(const std::string &file_path, std::vector<float> 
 	}
 
 	// Set up resampler for 16kHz mono float32
+#if FFMPEG_NEW_CHANNEL_API
 	AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_MONO;
 	AVChannelLayout in_ch_layout;
 
@@ -103,6 +113,28 @@ bool AudioUtils::LoadAudioFile(const std::string &file_path, std::vector<float> 
 	}
 
 	av_channel_layout_uninit(&in_ch_layout);
+#else
+	// Legacy FFmpeg API (< 5.1)
+	int64_t in_channel_layout = codec_ctx->channel_layout;
+	int in_channels = codec_ctx->channels;
+
+	if (in_channel_layout == 0) {
+		in_channel_layout = av_get_default_channel_layout(in_channels > 0 ? in_channels : 2);
+	}
+	if (in_channels == 0) {
+		in_channels = av_get_channel_layout_nb_channels(in_channel_layout);
+	}
+
+	swr_ctx = swr_alloc_set_opts(nullptr, AV_CH_LAYOUT_MONO, AV_SAMPLE_FMT_FLT, WHISPER_SAMPLE_RATE, in_channel_layout,
+	                             codec_ctx->sample_fmt, codec_ctx->sample_rate, 0, nullptr);
+
+	if (!swr_ctx || swr_init(swr_ctx) < 0) {
+		error = "Failed to initialize resampler";
+		avcodec_free_context(&codec_ctx);
+		avformat_close_input(&format_ctx);
+		return false;
+	}
+#endif
 
 	packet = av_packet_alloc();
 	frame = av_frame_alloc();
@@ -336,6 +368,7 @@ bool AudioUtils::LoadAudioFromMemory(const uint8_t *data, size_t size, std::vect
 		return false;
 	}
 
+#if FFMPEG_NEW_CHANNEL_API
 	AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_MONO;
 	AVChannelLayout in_ch_layout;
 
@@ -360,6 +393,30 @@ bool AudioUtils::LoadAudioFromMemory(const uint8_t *data, size_t size, std::vect
 	}
 
 	av_channel_layout_uninit(&in_ch_layout);
+#else
+	// Legacy FFmpeg API (< 5.1)
+	int64_t in_channel_layout = codec_ctx->channel_layout;
+	int in_channels = codec_ctx->channels;
+
+	if (in_channel_layout == 0) {
+		in_channel_layout = av_get_default_channel_layout(in_channels > 0 ? in_channels : 2);
+	}
+	if (in_channels == 0) {
+		in_channels = av_get_channel_layout_nb_channels(in_channel_layout);
+	}
+
+	swr_ctx = swr_alloc_set_opts(nullptr, AV_CH_LAYOUT_MONO, AV_SAMPLE_FMT_FLT, WHISPER_SAMPLE_RATE, in_channel_layout,
+	                             codec_ctx->sample_fmt, codec_ctx->sample_rate, 0, nullptr);
+
+	if (!swr_ctx || swr_init(swr_ctx) < 0) {
+		error = "Failed to initialize resampler";
+		avcodec_free_context(&codec_ctx);
+		avformat_close_input(&format_ctx);
+		av_free(avio_ctx->buffer);
+		avio_context_free(&avio_ctx);
+		return false;
+	}
+#endif
 
 	packet = av_packet_alloc();
 	frame = av_frame_alloc();
@@ -476,7 +533,11 @@ bool AudioUtils::GetAudioMetadata(const std::string &file_path, AudioMetadata &m
 	metadata.duration_seconds =
 	    format_ctx->duration > 0 ? static_cast<double>(format_ctx->duration) / AV_TIME_BASE : 0.0;
 	metadata.sample_rate = codecpar->sample_rate;
+#if FFMPEG_NEW_CHANNEL_API
 	metadata.channels = codecpar->ch_layout.nb_channels;
+#else
+	metadata.channels = codecpar->channels;
+#endif
 	metadata.format = format_ctx->iformat->name;
 
 	// Get file size
