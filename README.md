@@ -25,7 +25,7 @@ LOAD whisper;
 
 ### Download a Model
 
-Models are downloaded automatically to `~/.duckdb/whisper/models/`. You can also download manually:
+Models must be downloaded before use. They are stored in `~/.duckdb/whisper/models/`.
 
 ```bash
 mkdir -p ~/.duckdb/whisper/models
