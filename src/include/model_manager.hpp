@@ -40,9 +40,6 @@ public:
 	// Download model from HuggingFace
 	static bool DownloadModel(const std::string &model_name, const std::string &base_path, std::string &error);
 
-	// Delete local model file
-	static bool DeleteModel(const std::string &model_name, const std::string &base_path, std::string &error);
-
 	// Validate model name
 	static bool IsValidModelName(const std::string &model_name);
 

@@ -105,29 +105,6 @@ static void WhisperDownloadModelFunction(DataChunk &args, ExpressionState &state
 }
 
 // ============================================================================
-// whisper_delete_model(model_name) - Scalar function to delete a model
-// ============================================================================
-
-static void WhisperDeleteModelFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto config = WhisperConfigManager::GetConfig(context);
-
-	auto &model_name_vec = args.data[0];
-	idx_t count = args.size();
-
-	UnaryExecutor::Execute<string_t, string_t>(model_name_vec, result, count, [&](string_t model_name_val) {
-		std::string model_name = model_name_val.GetString();
-		std::string error;
-
-		if (!ModelManager::DeleteModel(model_name, config.model_path, error)) {
-			throw InvalidInputException("Failed to delete model: " + error);
-		}
-
-		return StringVector::AddString(result, "Successfully deleted model '" + model_name + "'");
-	});
-}
-
-// ============================================================================
 // whisper_model_info() - Table function showing current model info
 // ============================================================================
 
@@ -207,11 +184,6 @@ void RegisterModelFunctions(ExtensionLoader &loader) {
 	auto download_func = ScalarFunction("whisper_download_model", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	                                    WhisperDownloadModelFunction);
 	loader.RegisterFunction(download_func);
-
-	// whisper_delete_model(model_name)
-	auto delete_func = ScalarFunction("whisper_delete_model", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                  WhisperDeleteModelFunction);
-	loader.RegisterFunction(delete_func);
 
 	// whisper_model_info()
 	TableFunction model_info("whisper_model_info", {}, ModelInfoExecute, ModelInfoBind, ModelInfoInit);

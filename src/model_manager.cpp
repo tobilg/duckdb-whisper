@@ -143,27 +143,6 @@ bool ModelManager::DownloadModel(const std::string &model_name, const std::strin
 	return false;
 }
 
-bool ModelManager::DeleteModel(const std::string &model_name, const std::string &base_path, std::string &error) {
-	if (!IsValidModelName(model_name)) {
-		error = "Invalid model name: " + model_name;
-		return false;
-	}
-
-	std::string model_path = GetModelPath(model_name, base_path);
-
-	if (!IsModelDownloaded(model_name, base_path)) {
-		error = "Model not found: " + model_name;
-		return false;
-	}
-
-	if (std::remove(model_path.c_str()) != 0) {
-		error = "Failed to delete model file";
-		return false;
-	}
-
-	return true;
-}
-
 bool ModelManager::IsValidModelName(const std::string &model_name) {
 	for (const auto &valid_name : AVAILABLE_MODELS) {
 		if (valid_name == model_name) {

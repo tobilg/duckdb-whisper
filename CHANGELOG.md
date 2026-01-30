@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model management functions:
   - `whisper_list_models()` - List all available models with download status
   - `whisper_download_model()` - Get download instructions for a model
-  - `whisper_delete_model()` - Delete a locally stored model
 - Utility functions:
   - `whisper_version()` - Get extension and whisper.cpp version info
   - `whisper_check_audio()` - Validate audio files

@@ -16,7 +16,6 @@ Complete reference for all functions provided by the whisper extension.
 - [Model Management Functions](#model-management-functions)
   - [whisper_list_models](#whisper_list_models)
   - [whisper_download_model](#whisper_download_model)
-  - [whisper_delete_model](#whisper_delete_model)
 - [Utility Functions](#utility-functions)
   - [whisper_version](#whisper_version)
   - [whisper_check_audio](#whisper_check_audio)
@@ -463,43 +462,6 @@ SELECT whisper_download_model('small.en');
 #### Errors
 
 - `Invalid model name` - The specified model name is not recognized
-
----
-
-### whisper_delete_model
-
-Deletes a locally stored model file.
-
-#### Signature
-
-```sql
-whisper_delete_model(model_name VARCHAR) -> VARCHAR
-```
-
-#### Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| model_name | VARCHAR | Yes | Name of the model to delete |
-
-#### Returns
-
-'OK' on success.
-
-#### Examples
-
-```sql
--- Delete a model
-SELECT whisper_delete_model('large-v3');
-
--- Verify deletion
-SELECT * FROM whisper_list_models() WHERE name = 'large-v3';
-```
-
-#### Errors
-
-- `Invalid model name` - The specified model name is not recognized
-- `Model not found` - The model is not downloaded
 
 ---
 

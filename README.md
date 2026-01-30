@@ -261,10 +261,6 @@ SELECT * FROM whisper_list_models() WHERE is_downloaded = true;
 
 Returns download instructions for a model.
 
-#### `whisper_delete_model(model_name)`
-
-Deletes a locally stored model file.
-
 ### Utility Functions
 
 #### `whisper_version()`

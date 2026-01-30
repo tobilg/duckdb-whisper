@@ -31,9 +31,3 @@ statement error
 SELECT whisper_download_model('invalid_model_name');
 ----
 Invalid model name
-
-# Test that invalid model name is rejected for delete
-statement error
-SELECT whisper_delete_model('invalid_model_name');
-----
-Invalid model name
