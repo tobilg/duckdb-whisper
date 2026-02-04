@@ -51,7 +51,7 @@ TranscriptionResult TranscriptionEngine::TranscribePCM(const std::vector<float> 
 
 	// Get or create whisper context
 	std::string ctx_error;
-	auto ctx_wrapper = WhisperContextManager::GetInstance().GetContext(model_path, ctx_error);
+	auto ctx_wrapper = WhisperContextManager::GetInstance().GetContext(model_path, config.use_gpu, ctx_error);
 	if (!ctx_wrapper || !ctx_wrapper->IsValid()) {
 		result.error = ctx_error.empty() ? "Failed to load model" : ctx_error;
 		return result;
@@ -77,11 +77,11 @@ TranscriptionResult TranscriptionEngine::TranscribePCM(const std::vector<float> 
 		wparams.language = nullptr; // Auto-detect
 	}
 
-	// Set thread count
+	// Set thread count (use all available cores by default)
 	if (config.threads > 0) {
 		wparams.n_threads = config.threads;
 	} else {
-		wparams.n_threads = std::min(8, static_cast<int>(std::thread::hardware_concurrency()));
+		wparams.n_threads = static_cast<int>(std::thread::hardware_concurrency());
 	}
 
 	// Other settings
@@ -141,6 +141,9 @@ TranscriptionResult TranscriptionEngine::TranscribeFile(const std::string &file_
 	TranscriptionResult result;
 	result.success = false;
 
+	// Configure FFmpeg logging based on settings
+	AudioUtils::SetFFmpegLogging(config.ffmpeg_logging);
+
 	// Load and convert audio
 	std::vector<float> pcm_data;
 	std::string load_error;
@@ -157,6 +160,9 @@ TranscriptionResult TranscriptionEngine::TranscribeMemory(const uint8_t *data, s
                                                           const WhisperConfig &config) {
 	TranscriptionResult result;
 	result.success = false;
+
+	// Configure FFmpeg logging based on settings
+	AudioUtils::SetFFmpegLogging(config.ffmpeg_logging);
 
 	// Load and convert audio from memory
 	std::vector<float> pcm_data;

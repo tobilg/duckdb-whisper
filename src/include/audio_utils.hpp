@@ -28,6 +28,9 @@ public:
 	// Check if audio file is valid and supported
 	static bool CheckAudioFile(const std::string &file_path, std::string &error);
 
+	// Configure FFmpeg logging (true = AV_LOG_INFO, false = AV_LOG_QUIET)
+	static void SetFFmpegLogging(bool enabled);
+
 private:
 	static constexpr int WHISPER_SAMPLE_RATE = 16000;
 };

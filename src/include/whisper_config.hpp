@@ -33,6 +33,12 @@ struct WhisperConfig {
 	// Verbose mode
 	bool verbose; // Enable verbose status messages
 
+	// FFmpeg logging
+	bool ffmpeg_logging; // Enable FFmpeg log output
+
+	// GPU acceleration
+	bool use_gpu; // Use GPU acceleration if available (Metal on macOS)
+
 	// Default values
 	static constexpr const char *DEFAULT_MODEL = "base.en";
 	static constexpr const char *DEFAULT_LANGUAGE = "auto";
@@ -49,6 +55,8 @@ struct WhisperConfig {
 	static constexpr bool DEFAULT_VOICE_QUERY_SHOW_SQL = false;
 	static constexpr int DEFAULT_VOICE_QUERY_TIMEOUT = 30;
 	static constexpr bool DEFAULT_VERBOSE = false;
+	static constexpr bool DEFAULT_FFMPEG_LOGGING = false;
+	static constexpr bool DEFAULT_USE_GPU = true;
 
 	WhisperConfig();
 

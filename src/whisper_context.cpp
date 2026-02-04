@@ -24,10 +24,10 @@ WhisperContextWrapper::WhisperContextWrapper(whisper_context *ctx) : ctx_(ctx) {
 }
 
 WhisperContextWrapper::~WhisperContextWrapper() {
-	if (ctx_) {
-		whisper_free(ctx_);
-		ctx_ = nullptr;
-	}
+	// Intentionally don't call whisper_free() to avoid Metal cleanup assertion
+	// at program exit. The OS will reclaim resources anyway.
+	// This is a workaround for: https://github.com/ggml-org/llama.cpp/issues/17869
+	ctx_ = nullptr;
 }
 
 WhisperContextWrapper::WhisperContextWrapper(WhisperContextWrapper &&other) noexcept : ctx_(other.ctx_) {
@@ -36,9 +36,7 @@ WhisperContextWrapper::WhisperContextWrapper(WhisperContextWrapper &&other) noex
 
 WhisperContextWrapper &WhisperContextWrapper::operator=(WhisperContextWrapper &&other) noexcept {
 	if (this != &other) {
-		if (ctx_) {
-			whisper_free(ctx_);
-		}
+		// Don't free old context (see destructor comment)
 		ctx_ = other.ctx_;
 		other.ctx_ = nullptr;
 	}
@@ -46,26 +44,31 @@ WhisperContextWrapper &WhisperContextWrapper::operator=(WhisperContextWrapper &&
 }
 
 WhisperContextManager &WhisperContextManager::GetInstance() {
-	static WhisperContextManager instance;
-	return instance;
+	// Use a pointer that intentionally leaks to avoid Metal cleanup assertion
+	// at program exit. The OS will reclaim resources anyway.
+	static WhisperContextManager *instance = new WhisperContextManager();
+	return *instance;
 }
 
 std::shared_ptr<WhisperContextWrapper> WhisperContextManager::GetContext(const std::string &model_path,
-                                                                         std::string &error) {
+                                                                         bool use_gpu, std::string &error) {
 	std::lock_guard<std::mutex> lock(mutex_);
 
 	// Suppress verbose logging from whisper.cpp
 	SuppressWhisperLogs();
 
+	// Create cache key that includes GPU setting
+	std::string cache_key = model_path + (use_gpu ? ":gpu" : ":cpu");
+
 	// Check if already cached
-	auto it = contexts_.find(model_path);
+	auto it = contexts_.find(cache_key);
 	if (it != contexts_.end() && it->second && it->second->IsValid()) {
 		return it->second;
 	}
 
 	// Load new context
 	whisper_context_params cparams = whisper_context_default_params();
-	cparams.use_gpu = true;
+	cparams.use_gpu = use_gpu;
 
 	whisper_context *ctx = whisper_init_from_file_with_params(model_path.c_str(), cparams);
 	if (!ctx) {
@@ -74,7 +77,7 @@ std::shared_ptr<WhisperContextWrapper> WhisperContextManager::GetContext(const s
 	}
 
 	auto wrapper = std::make_shared<WhisperContextWrapper>(ctx);
-	contexts_[model_path] = wrapper;
+	contexts_[cache_key] = wrapper;
 
 	return wrapper;
 }

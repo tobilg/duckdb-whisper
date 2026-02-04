@@ -33,6 +33,10 @@ static void WhisperVersionFunction(DataChunk &args, ExpressionState &state, Vect
 // ============================================================================
 
 static void WhisperCheckAudioFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &context = state.GetContext();
+	auto config = WhisperConfigManager::GetConfig(context);
+	AudioUtils::SetFFmpegLogging(config.ffmpeg_logging);
+
 	auto &file_path_vec = args.data[0];
 	idx_t count = args.size();
 
@@ -105,6 +109,10 @@ static void AudioInfoExecute(ClientContext &context, TableFunctionInput &data, D
 		output.SetCardinality(0);
 		return;
 	}
+
+	// Configure FFmpeg logging based on settings
+	auto config = WhisperConfigManager::GetConfig(context);
+	AudioUtils::SetFFmpegLogging(config.ffmpeg_logging);
 
 	AudioMetadata metadata;
 	std::string error;
@@ -199,7 +207,9 @@ static void WhisperGetConfigFunction(DataChunk &args, ExpressionState &state, Ve
 	                         ", max_duration=" + std::to_string(config.max_duration) +
 	                         ", silence_duration=" + std::to_string(config.silence_duration) +
 	                         ", silence_threshold=" + std::to_string(config.silence_threshold) +
-	                         ", verbose=" + (config.verbose ? "true" : "false");
+	                         ", verbose=" + (config.verbose ? "true" : "false") +
+	                         ", ffmpeg_logging=" + (config.ffmpeg_logging ? "true" : "false") +
+	                         ", use_gpu=" + (config.use_gpu ? "true" : "false");
 
 #ifdef WHISPER_ENABLE_VOICE_QUERY
 	config_str += ", text_to_sql_url=" + config.text_to_sql_url +

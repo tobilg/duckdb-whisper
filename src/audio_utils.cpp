@@ -7,6 +7,7 @@ extern "C" {
 #include <libavutil/opt.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/version.h>
+#include <libavutil/log.h>
 }
 
 #include <fstream>
@@ -582,6 +583,14 @@ bool AudioUtils::CheckAudioFile(const std::string &file_path, std::string &error
 	}
 
 	return true;
+}
+
+void AudioUtils::SetFFmpegLogging(bool enabled) {
+	if (enabled) {
+		av_log_set_level(AV_LOG_INFO);
+	} else {
+		av_log_set_level(AV_LOG_QUIET);
+	}
 }
 
 } // namespace duckdb

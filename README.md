@@ -323,10 +323,77 @@ RESET whisper_device_id;
 | `whisper_silence_duration` | DOUBLE | 1.0 | Silence to stop recording (seconds) |
 | `whisper_silence_threshold` | DOUBLE | 0.001 | Silence detection threshold |
 | `whisper_verbose` | BOOLEAN | false | Show status messages during operations |
+| `whisper_use_gpu` | BOOLEAN | true | Use GPU acceleration if available (Metal on macOS) |
+| `whisper_ffmpeg_logging` | BOOLEAN | false | Show FFmpeg log output (warnings, info) |
 | `whisper_text_to_sql_url` | VARCHAR | "http://localhost:4000/generate-sql" | Text-to-SQL proxy URL |
 | `whisper_text_to_sql_timeout` | INTEGER | 15 | Proxy request timeout (seconds) |
 | `whisper_voice_query_show_sql` | BOOLEAN | false | Show generated SQL in output |
 | `whisper_voice_query_timeout` | INTEGER | 30 | Timeout for entire voice query operation (seconds) |
+
+## Transcription Performance
+
+Transcription speed depends heavily on your hardware and model choice.
+
+### macOS (Apple Silicon)
+
+On macOS with Apple Silicon (M1/M2/M3/M4), the extension uses **Metal GPU acceleration** by default, providing significant speedups:
+
+| Mode | 42-min Podcast | Speed |
+|------|----------------|-------|
+| CPU only | ~12 min | 3.5x realtime |
+| **Metal GPU** | **~1 min** | **40x realtime** |
+
+GPU acceleration is enabled by default. To disable it (e.g., for debugging):
+
+```sql
+SET whisper_use_gpu = false;
+```
+
+### Linux
+
+On Linux, the community extension uses **CPU with all available cores**. For best performance with CPU:
+
+- Use English-only models (`.en` suffix) when transcribing English audio
+- Use smaller models (`tiny.en`, `base.en`) for faster transcription
+- Ensure adequate CPU cores available
+
+#### GPU Acceleration on Linux
+
+The community builds are CPU-only because GPU support requires runtime drivers that vary by system. However, you can build from source with GPU acceleration:
+
+| Backend | GPU Vendor | Build Flag | Requirements |
+|---------|------------|------------|--------------|
+| **Vulkan** | Any (NVIDIA, AMD, Intel) | `GGML_VULKAN=ON` | Vulkan SDK + GPU drivers with Vulkan ICD |
+| **CUDA** | NVIDIA | `GGML_CUDA=ON` | CUDA Toolkit + NVIDIA drivers |
+| **ROCm/HIP** | AMD | `GGML_HIP=ON` | ROCm stack |
+
+**Building with Vulkan (recommended for portability):**
+
+```bash
+# Install Vulkan SDK (Ubuntu/Debian)
+sudo apt-get install libvulkan-dev vulkan-tools
+
+# Build with Vulkan support
+git clone --recursive https://github.com/tobilg/duckdb-whisper.git
+cd duckdb-whisper
+EXT_FLAGS="-DGGML_VULKAN=ON" VCPKG_TOOLCHAIN_PATH=~/vcpkg/scripts/buildsystems/vcpkg.cmake make release
+```
+
+**Building with CUDA (NVIDIA GPUs):**
+
+```bash
+# Requires CUDA Toolkit installed (https://developer.nvidia.com/cuda-toolkit)
+EXT_FLAGS="-DGGML_CUDA=ON" VCPKG_TOOLCHAIN_PATH=~/vcpkg/scripts/buildsystems/vcpkg.cmake make release
+```
+
+**Note:** GPU builds require the corresponding runtime libraries on the target system. The `whisper_use_gpu` setting controls whether GPU acceleration is used at runtime.
+
+### Performance Tips
+
+1. **Choose the right model**: `tiny.en` is ~10x faster than `large-v3` with acceptable quality for many use cases
+2. **Use English-only models**: `.en` models are optimized and faster for English audio
+3. **Local files are faster**: Avoid network latency by downloading files first
+4. **Monitor with FFmpeg logging**: Enable `SET whisper_ffmpeg_logging = true` to see audio decoding progress
 
 ## Voice-to-SQL Feature
 

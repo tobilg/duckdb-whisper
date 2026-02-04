@@ -21,7 +21,8 @@ WhisperConfig::WhisperConfig()
       device_id(DEFAULT_DEVICE_ID), max_duration(DEFAULT_MAX_DURATION), silence_duration(DEFAULT_SILENCE_DURATION),
       silence_threshold(DEFAULT_SILENCE_THRESHOLD), text_to_sql_url(DEFAULT_TEXT_TO_SQL_URL),
       text_to_sql_timeout(DEFAULT_TEXT_TO_SQL_TIMEOUT), voice_query_show_sql(DEFAULT_VOICE_QUERY_SHOW_SQL),
-      voice_query_timeout(DEFAULT_VOICE_QUERY_TIMEOUT), verbose(DEFAULT_VERBOSE) {
+      voice_query_timeout(DEFAULT_VOICE_QUERY_TIMEOUT), verbose(DEFAULT_VERBOSE), ffmpeg_logging(DEFAULT_FFMPEG_LOGGING),
+      use_gpu(DEFAULT_USE_GPU) {
 }
 
 std::string WhisperConfig::GetDefaultModelPath() {
@@ -78,6 +79,12 @@ void WhisperConfigManager::RegisterSettings(DatabaseInstance &db) {
 	config.AddExtensionOption("whisper_verbose", "Show status messages during recording and voice query operations",
 	                          LogicalType::BOOLEAN, Value::BOOLEAN(WhisperConfig::DEFAULT_VERBOSE));
 
+	config.AddExtensionOption("whisper_ffmpeg_logging", "Enable FFmpeg log output (warnings, info messages)",
+	                          LogicalType::BOOLEAN, Value::BOOLEAN(WhisperConfig::DEFAULT_FFMPEG_LOGGING));
+
+	config.AddExtensionOption("whisper_use_gpu", "Use GPU acceleration if available (Metal on macOS)",
+	                          LogicalType::BOOLEAN, Value::BOOLEAN(WhisperConfig::DEFAULT_USE_GPU));
+
 #ifdef WHISPER_ENABLE_VOICE_QUERY
 	// Voice query settings
 	config.AddExtensionOption("whisper_text_to_sql_url", "URL of the text-to-sql proxy service", LogicalType::VARCHAR,
@@ -124,6 +131,12 @@ WhisperConfig WhisperConfigManager::GetConfig(ClientContext &context) {
 	}
 	if (context.TryGetCurrentSetting("whisper_verbose", val)) {
 		config.verbose = val.GetValue<bool>();
+	}
+	if (context.TryGetCurrentSetting("whisper_ffmpeg_logging", val)) {
+		config.ffmpeg_logging = val.GetValue<bool>();
+	}
+	if (context.TryGetCurrentSetting("whisper_use_gpu", val)) {
+		config.use_gpu = val.GetValue<bool>();
 	}
 
 #ifdef WHISPER_ENABLE_VOICE_QUERY

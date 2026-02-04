@@ -68,7 +68,15 @@ set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(WHISPER_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
-set(GGML_METAL OFF CACHE BOOL "" FORCE)
+
+# Enable GPU acceleration on macOS (Metal)
+if(APPLE)
+    set(GGML_METAL ON CACHE BOOL "" FORCE)
+    set(GGML_METAL_EMBED_LIBRARY ON CACHE BOOL "" FORCE)
+    set(GGML_ACCELERATE ON CACHE BOOL "" FORCE)
+else()
+    set(GGML_METAL OFF CACHE BOOL "" FORCE)
+endif()
 set(GGML_BLAS OFF CACHE BOOL "" FORCE)
 
 # Add whisper.cpp subdirectory
@@ -145,7 +153,12 @@ endif()
 # Make whisper and its dependencies exportable by adding them to the DuckDB export set
 # This must be done AFTER build_static_extension creates the extension target
 if(DEFINED DUCKDB_EXPORT_SET)
-    install(TARGETS whisper ggml ggml-base ggml-cpu ${EXTENSION_NAME}
+    set(WHISPER_EXPORT_TARGETS whisper ggml ggml-base ggml-cpu ${EXTENSION_NAME})
+    # Include ggml-metal if Metal is enabled
+    if(APPLE AND TARGET ggml-metal)
+        list(APPEND WHISPER_EXPORT_TARGETS ggml-metal)
+    endif()
+    install(TARGETS ${WHISPER_EXPORT_TARGETS}
         EXPORT "${DUCKDB_EXPORT_SET}"
         LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
         ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")

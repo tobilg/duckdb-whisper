@@ -40,7 +40,7 @@ public:
 	static WhisperContextManager &GetInstance();
 
 	// Get or create a context for the given model
-	std::shared_ptr<WhisperContextWrapper> GetContext(const std::string &model_path, std::string &error);
+	std::shared_ptr<WhisperContextWrapper> GetContext(const std::string &model_path, bool use_gpu, std::string &error);
 
 	// Clear cached context for a model
 	void ClearContext(const std::string &model_path);
