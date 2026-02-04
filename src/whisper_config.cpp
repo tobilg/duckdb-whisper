@@ -21,8 +21,8 @@ WhisperConfig::WhisperConfig()
       device_id(DEFAULT_DEVICE_ID), max_duration(DEFAULT_MAX_DURATION), silence_duration(DEFAULT_SILENCE_DURATION),
       silence_threshold(DEFAULT_SILENCE_THRESHOLD), text_to_sql_url(DEFAULT_TEXT_TO_SQL_URL),
       text_to_sql_timeout(DEFAULT_TEXT_TO_SQL_TIMEOUT), voice_query_show_sql(DEFAULT_VOICE_QUERY_SHOW_SQL),
-      voice_query_timeout(DEFAULT_VOICE_QUERY_TIMEOUT), verbose(DEFAULT_VERBOSE), ffmpeg_logging(DEFAULT_FFMPEG_LOGGING),
-      use_gpu(DEFAULT_USE_GPU) {
+      voice_query_timeout(DEFAULT_VOICE_QUERY_TIMEOUT), verbose(DEFAULT_VERBOSE),
+      ffmpeg_logging(DEFAULT_FFMPEG_LOGGING), use_gpu(DEFAULT_USE_GPU) {
 }
 
 std::string WhisperConfig::GetDefaultModelPath() {

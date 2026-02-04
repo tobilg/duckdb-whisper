@@ -50,8 +50,8 @@ WhisperContextManager &WhisperContextManager::GetInstance() {
 	return *instance;
 }
 
-std::shared_ptr<WhisperContextWrapper> WhisperContextManager::GetContext(const std::string &model_path,
-                                                                         bool use_gpu, std::string &error) {
+std::shared_ptr<WhisperContextWrapper> WhisperContextManager::GetContext(const std::string &model_path, bool use_gpu,
+                                                                         std::string &error) {
 	std::lock_guard<std::mutex> lock(mutex_);
 
 	// Suppress verbose logging from whisper.cpp
