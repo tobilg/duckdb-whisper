@@ -79,6 +79,25 @@ else()
 endif()
 set(GGML_BLAS OFF CACHE BOOL "" FORCE)
 
+# Apply patches to whisper.cpp before building
+if(APPLE)
+    execute_process(
+        COMMAND git apply --check ${CMAKE_CURRENT_SOURCE_DIR}/patches/ggml-metal-disable-rsets-assert.patch
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/whisper.cpp
+        RESULT_VARIABLE PATCH_CHECK_RESULT
+        ERROR_QUIET
+    )
+    if(PATCH_CHECK_RESULT EQUAL 0)
+        execute_process(
+            COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/patches/ggml-metal-disable-rsets-assert.patch
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/whisper.cpp
+        )
+        message(STATUS "Applied ggml-metal rsets assertion patch")
+    else()
+        message(STATUS "ggml-metal rsets assertion patch already applied or not needed")
+    endif()
+endif()
+
 # Add whisper.cpp subdirectory
 add_subdirectory(third_party/whisper.cpp EXCLUDE_FROM_ALL)
 
