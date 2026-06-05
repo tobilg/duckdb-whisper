@@ -4,6 +4,7 @@
 duckdb_extension_load(whisper
     SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
     LOAD_TESTS
+    EXTENSION_VERSION v0.3.0
 )
 
 # Any extra extensions that should be built

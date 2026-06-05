@@ -12,15 +12,22 @@ namespace duckdb {
 
 // Extension version
 #ifndef EXT_VERSION_WHISPER
-#define EXT_VERSION_WHISPER "0.1.0"
+#define EXT_VERSION_WHISPER "0.3.0"
 #endif
+
+static std::string FormatExtensionVersion(const std::string &version) {
+	if (!version.empty() && version[0] == 'v') {
+		return version;
+	}
+	return "v" + version;
+}
 
 // ============================================================================
 // whisper_version() - Returns extension and whisper.cpp version info
 // ============================================================================
 
 static void WhisperVersionFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	std::string version_info = "whisper extension v" + std::string(EXT_VERSION_WHISPER) +
+	std::string version_info = "whisper extension " + FormatExtensionVersion(EXT_VERSION_WHISPER) +
 	                           " (whisper.cpp: " + std::string(whisper_version()) + ")";
 	result.SetVectorType(VectorType::CONSTANT_VECTOR);
 	ConstantVector::SetNull(result, false);

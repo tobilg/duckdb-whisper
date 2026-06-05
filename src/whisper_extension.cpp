@@ -65,7 +65,7 @@ std::string WhisperExtension::Version() const {
 #ifdef EXT_VERSION_WHISPER
 	return EXT_VERSION_WHISPER;
 #else
-	return "0.1.0";
+	return "v0.3.0";
 #endif
 }
 
