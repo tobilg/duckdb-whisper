@@ -1,12 +1,12 @@
 [submodule "duckdb"]
 	path = duckdb
 	url = https://github.com/duckdb/duckdb
-	branch = v1.5.2
+	branch = v1.5.3
 [submodule "extension-ci-tools"]
 	path = extension-ci-tools
 	url = https://github.com/duckdb/extension-ci-tools
-	branch = v1.5.2
+	branch = v1.5.3
 [submodule "third_party/whisper.cpp"]
 	path = third_party/whisper.cpp
 	url = https://github.com/ggml-org/whisper.cpp.git
-	branch = v1.8.4
+	branch = v1.8.6
