@@ -6,7 +6,7 @@ set(TARGET_NAME whisper)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
-project(${TARGET_NAME} VERSION 0.3.0)
+project(${TARGET_NAME} VERSION 0.4.0)
 
 # Option to enable/disable audio recording (requires SDL2)
 option(WHISPER_ENABLE_RECORDING "Enable audio recording via SDL2" ON)

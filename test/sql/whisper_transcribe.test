@@ -10,6 +10,11 @@ require whisper
 # Skip if model not downloaded (check via list_models)
 require-env WHISPER_TEST_MODEL
 
+# Keep sqllogictest deterministic and avoid Metal initialization issues in the
+# static unittest runner.
+statement ok
+SET whisper_use_gpu=false;
+
 # Test whisper_transcribe returns text
 query I
 SELECT LENGTH(whisper_transcribe('test/data/test_english.wav', 'tiny.en')) > 50;

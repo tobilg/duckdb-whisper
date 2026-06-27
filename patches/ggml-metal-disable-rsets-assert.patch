@@ -1,8 +1,8 @@
 diff --git a/ggml/src/ggml-metal/ggml-metal-device.m b/ggml/src/ggml-metal/ggml-metal-device.m
-index ff899a81..71a510c0 100644
+index d583bd6e..0664f627 100644
 --- a/ggml/src/ggml-metal/ggml-metal-device.m
 +++ b/ggml/src/ggml-metal/ggml-metal-device.m
-@@ -605,7 +605,7 @@ void ggml_metal_rsets_free(ggml_metal_rsets_t rsets) {
+@@ -619,7 +619,7 @@ void ggml_metal_rsets_free(ggml_metal_rsets_t rsets) {
      }
  
      // note: if you hit this assert, most likely you haven't deallocated all Metal resources before exiting

@@ -93,19 +93,24 @@ bool AudioUtils::LoadAudioFile(const std::string &file_path, std::vector<float> 
 	// Set up resampler for 16kHz mono float32
 #if FFMPEG_NEW_CHANNEL_API
 	AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_MONO;
-	AVChannelLayout in_ch_layout;
+	AVChannelLayout in_ch_layout = {};
 
 	if (codec_ctx->ch_layout.nb_channels > 0) {
-		av_channel_layout_copy(&in_ch_layout, &codec_ctx->ch_layout);
+		if (av_channel_layout_copy(&in_ch_layout, &codec_ctx->ch_layout) < 0) {
+			error = "Failed to copy input channel layout";
+			avcodec_free_context(&codec_ctx);
+			avformat_close_input(&format_ctx);
+			return false;
+		}
 	} else {
 		av_channel_layout_default(&in_ch_layout,
 		                          codecpar->ch_layout.nb_channels > 0 ? codecpar->ch_layout.nb_channels : 2);
 	}
 
-	swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_FLT, WHISPER_SAMPLE_RATE, &in_ch_layout,
-	                    codec_ctx->sample_fmt, codec_ctx->sample_rate, 0, nullptr);
+	int swr_result = swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_FLT, WHISPER_SAMPLE_RATE,
+	                                     &in_ch_layout, codec_ctx->sample_fmt, codec_ctx->sample_rate, 0, nullptr);
 
-	if (!swr_ctx || swr_init(swr_ctx) < 0) {
+	if (swr_result < 0 || !swr_ctx || swr_init(swr_ctx) < 0) {
 		error = "Failed to initialize resampler";
 		av_channel_layout_uninit(&in_ch_layout);
 		avcodec_free_context(&codec_ctx);
@@ -371,19 +376,26 @@ bool AudioUtils::LoadAudioFromMemory(const uint8_t *data, size_t size, std::vect
 
 #if FFMPEG_NEW_CHANNEL_API
 	AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_MONO;
-	AVChannelLayout in_ch_layout;
+	AVChannelLayout in_ch_layout = {};
 
 	if (codec_ctx->ch_layout.nb_channels > 0) {
-		av_channel_layout_copy(&in_ch_layout, &codec_ctx->ch_layout);
+		if (av_channel_layout_copy(&in_ch_layout, &codec_ctx->ch_layout) < 0) {
+			error = "Failed to copy input channel layout";
+			avcodec_free_context(&codec_ctx);
+			avformat_close_input(&format_ctx);
+			av_free(avio_ctx->buffer);
+			avio_context_free(&avio_ctx);
+			return false;
+		}
 	} else {
 		av_channel_layout_default(&in_ch_layout,
 		                          codecpar->ch_layout.nb_channels > 0 ? codecpar->ch_layout.nb_channels : 2);
 	}
 
-	swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_FLT, WHISPER_SAMPLE_RATE, &in_ch_layout,
-	                    codec_ctx->sample_fmt, codec_ctx->sample_rate, 0, nullptr);
+	int swr_result = swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_FLT, WHISPER_SAMPLE_RATE,
+	                                     &in_ch_layout, codec_ctx->sample_fmt, codec_ctx->sample_rate, 0, nullptr);
 
-	if (!swr_ctx || swr_init(swr_ctx) < 0) {
+	if (swr_result < 0 || !swr_ctx || swr_init(swr_ctx) < 0) {
 		error = "Failed to initialize resampler";
 		av_channel_layout_uninit(&in_ch_layout);
 		avcodec_free_context(&codec_ctx);

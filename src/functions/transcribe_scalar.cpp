@@ -8,6 +8,14 @@
 
 namespace duckdb {
 
+static ScalarFunction MakeTranscribeScalarFunction(vector<LogicalType> arguments, LogicalType return_type,
+                                                   scalar_function_t function) {
+	ScalarFunction scalar_function(std::move(arguments), std::move(return_type), std::move(function));
+	scalar_function.SetVolatile();
+	scalar_function.SetFallible();
+	return scalar_function;
+}
+
 static void WhisperTranscribeFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &context = state.GetContext();
 	auto config = WhisperConfigManager::GetConfig(context);
@@ -147,19 +155,22 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 	ScalarFunctionSet transcribe_set("whisper_transcribe");
 
 	// Version with just file path
-	transcribe_set.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeFunction));
+	transcribe_set.AddFunction(
+	    MakeTranscribeScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeFunction));
 
 	// Version with file path and model override
 	transcribe_set.AddFunction(
-	    ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeFunction));
+	    MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                 WhisperTranscribeFunction));
 
 	// Version with BLOB
 	transcribe_set.AddFunction(
-	    ScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
+	    MakeTranscribeScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
 
 	// Version with BLOB and model override
 	transcribe_set.AddFunction(
-	    ScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
+	    MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                 WhisperTranscribeBlobFunction));
 
 	loader.RegisterFunction(transcribe_set);
 
@@ -168,18 +179,22 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 	ScalarFunctionSet translate_set("whisper_translate");
 
 	// Version with just file path
-	translate_set.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateFunction));
+	translate_set.AddFunction(
+	    MakeTranscribeScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateFunction));
 
 	// Version with file path and model override
 	translate_set.AddFunction(
-	    ScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateFunction));
+	    MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                 WhisperTranslateFunction));
 
 	// Version with BLOB
-	translate_set.AddFunction(ScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranslateBlobFunction));
+	translate_set.AddFunction(
+	    MakeTranscribeScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranslateBlobFunction));
 
 	// Version with BLOB and model override
 	translate_set.AddFunction(
-	    ScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateBlobFunction));
+	    MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                 WhisperTranslateBlobFunction));
 
 	loader.RegisterFunction(translate_set);
 }
