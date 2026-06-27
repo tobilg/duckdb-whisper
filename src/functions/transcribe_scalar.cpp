@@ -159,18 +159,16 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 	    MakeTranscribeScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeFunction));
 
 	// Version with file path and model override
-	transcribe_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 WhisperTranscribeFunction));
+	transcribe_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR},
+	                                                        LogicalType::VARCHAR, WhisperTranscribeFunction));
 
 	// Version with BLOB
 	transcribe_set.AddFunction(
 	    MakeTranscribeScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
 
 	// Version with BLOB and model override
-	transcribe_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 WhisperTranscribeBlobFunction));
+	transcribe_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR},
+	                                                        LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
 
 	loader.RegisterFunction(transcribe_set);
 
@@ -183,18 +181,16 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 	    MakeTranscribeScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateFunction));
 
 	// Version with file path and model override
-	translate_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 WhisperTranslateFunction));
+	translate_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR},
+	                                                       LogicalType::VARCHAR, WhisperTranslateFunction));
 
 	// Version with BLOB
 	translate_set.AddFunction(
 	    MakeTranscribeScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranslateBlobFunction));
 
 	// Version with BLOB and model override
-	translate_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                 WhisperTranslateBlobFunction));
+	translate_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR},
+	                                                       LogicalType::VARCHAR, WhisperTranslateBlobFunction));
 
 	loader.RegisterFunction(translate_set);
 }
