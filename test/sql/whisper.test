@@ -13,7 +13,7 @@ require whisper
 
 # Test whisper_version function returns expected extension version
 query I
-SELECT whisper_version() LIKE 'whisper extension v0.4.0 (%';
+SELECT whisper_version() LIKE 'whisper extension v0.5.0 (%';
 ----
 true
 

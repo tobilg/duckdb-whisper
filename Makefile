@@ -7,6 +7,11 @@ EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 # Include the Makefile from extension-ci-tools
 include extension-ci-tools/makefiles/duckdb_extension.Makefile
 
+.PHONY: bump-version
+bump-version:
+	@test -n "$(V)" || { echo "Usage: make bump-version V=X.Y.Z" >&2; exit 2; }
+	@python3 "$(PROJ_DIR)scripts/bump_version.py" "$(V)"
+
 # Custom test targets for whisper extension
 test_whisper: release
 	@echo "Running whisper extension tests..."

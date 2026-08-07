@@ -6,7 +6,7 @@ set(TARGET_NAME whisper)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
-project(${TARGET_NAME} VERSION 0.4.0)
+project(${TARGET_NAME} VERSION 0.5.0)
 
 # Option to enable/disable audio recording (requires SDL2)
 option(WHISPER_ENABLE_RECORDING "Enable audio recording via SDL2" ON)
@@ -22,6 +22,36 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
     libswresample
     libavutil
 )
+
+# FindPkgConfig exposes macOS frameworks as separate "-framework;Name" link
+# options. CMake de-duplicates the repeated -framework options, leaving all but
+# the first framework name as bare linker arguments. Keep each pair together so
+# repeated configuration and relinking produce a valid compiler command.
+if(APPLE)
+    get_target_property(LIBAV_LINK_OPTIONS PkgConfig::LIBAV INTERFACE_LINK_OPTIONS)
+    if(LIBAV_LINK_OPTIONS)
+        set(LIBAV_GROUPED_LINK_OPTIONS)
+        set(LIBAV_EXPECT_FRAMEWORK_NAME OFF)
+
+        foreach(LIBAV_LINK_OPTION IN LISTS LIBAV_LINK_OPTIONS)
+            if(LIBAV_EXPECT_FRAMEWORK_NAME)
+                list(APPEND LIBAV_GROUPED_LINK_OPTIONS "SHELL:-framework ${LIBAV_LINK_OPTION}")
+                set(LIBAV_EXPECT_FRAMEWORK_NAME OFF)
+            elseif(LIBAV_LINK_OPTION STREQUAL "-framework")
+                set(LIBAV_EXPECT_FRAMEWORK_NAME ON)
+            else()
+                list(APPEND LIBAV_GROUPED_LINK_OPTIONS "${LIBAV_LINK_OPTION}")
+            endif()
+        endforeach()
+
+        if(LIBAV_EXPECT_FRAMEWORK_NAME)
+            message(FATAL_ERROR "FFmpeg pkg-config flags contain -framework without a framework name")
+        endif()
+
+        set_property(TARGET PkgConfig::LIBAV PROPERTY
+            INTERFACE_LINK_OPTIONS "${LIBAV_GROUPED_LINK_OPTIONS}")
+    endif()
+endif()
 
 # Find SDL2 if recording is enabled
 # Try CMake find_package first (vcpkg), then fall back to pkg-config (system packages)
