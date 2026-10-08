@@ -4,6 +4,7 @@
 
 #include "duckdb/common/exception.hpp"
 
+#include "function_description.hpp"
 #include "model_manager.hpp"
 #include "whisper_config.hpp"
 
@@ -177,17 +178,30 @@ static void ModelInfoExecute(ClientContext &context, TableFunctionInput &data, D
 
 void RegisterModelFunctions(ExtensionLoader &loader) {
 	// whisper_list_models()
-	TableFunction list_models("whisper_list_models", {}, ListModelsExecute, ListModelsBind, ListModelsInit);
-	loader.RegisterFunction(list_models);
+	RegisterTableFunction(
+	    loader, TableFunction("whisper_list_models", {}, ListModelsExecute, ListModelsBind, ListModelsInit),
+	    MakeFunctionDescription({},
+	                            "Lists all supported Whisper models with their download status: name, is_downloaded, "
+	                            "file_size, file_path and description.",
+	                            {"SELECT * FROM whisper_list_models() WHERE is_downloaded;"}, {"whisper", "model"}));
 
 	// whisper_download_model(model_name)
-	auto download_func = ScalarFunction("whisper_download_model", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                    WhisperDownloadModelFunction);
-	loader.RegisterFunction(download_func);
+	RegisterScalarFunction(
+	    loader,
+	    ScalarFunction("whisper_download_model", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                   WhisperDownloadModelFunction),
+	    MakeFunctionDescription({"model_name"},
+	                            "Downloads a Whisper model into the whisper_model_path directory and returns a status "
+	                            "message. Does nothing if the model is already downloaded.",
+	                            {"whisper_download_model('tiny.en')"}, {"whisper", "model"}));
 
 	// whisper_model_info()
-	TableFunction model_info("whisper_model_info", {}, ModelInfoExecute, ModelInfoBind, ModelInfoInit);
-	loader.RegisterFunction(model_info);
+	RegisterTableFunction(
+	    loader, TableFunction("whisper_model_info", {}, ModelInfoExecute, ModelInfoBind, ModelInfoInit),
+	    MakeFunctionDescription({},
+	                            "Returns one row describing the currently configured model: current_model, model_path, "
+	                            "is_downloaded, file_size, language and threads.",
+	                            {"SELECT * FROM whisper_model_info();"}, {"whisper", "model"}));
 }
 
 } // namespace duckdb

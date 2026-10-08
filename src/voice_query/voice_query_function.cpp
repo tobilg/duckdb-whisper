@@ -8,6 +8,7 @@
 #include "duckdb/common/printer.hpp"
 #include "duckdb/common/string_util.hpp"
 
+#include "function_description.hpp"
 #include "whisper_config.hpp"
 #include "audio_recorder.hpp"
 #include "transcription_engine.hpp"
@@ -385,7 +386,12 @@ void RegisterVoiceQueryFunctions(ExtensionLoader &loader) {
 	                                      VoiceQueryBind, VoiceQueryInit);
 	voice_query_set.AddFunction(voice_query_with_device);
 
-	loader.RegisterFunction(voice_query_set);
+	RegisterTableFunction(
+	    loader, std::move(voice_query_set),
+	    MakeFunctionDescription({"model", "device_id"},
+	                            "Records a spoken question from the microphone, converts it to SQL via the text-to-SQL "
+	                            "proxy at whisper_text_to_sql_url, executes the query and returns its result.",
+	                            {"SELECT * FROM whisper_voice_query();"}, {"whisper", "voice_query"}));
 
 	// whisper_voice_query_with_sql([model VARCHAR], [device_id INTEGER]) -> TABLE (_generated_sql, _transcription, ...)
 	TableFunctionSet voice_query_with_sql_set("whisper_voice_query_with_sql");
@@ -404,7 +410,12 @@ void RegisterVoiceQueryFunctions(ExtensionLoader &loader) {
 	                                          VoiceQueryWithSqlBind, VoiceQueryInit);
 	voice_query_with_sql_set.AddFunction(voice_query_sql_with_device);
 
-	loader.RegisterFunction(voice_query_with_sql_set);
+	RegisterTableFunction(loader, std::move(voice_query_with_sql_set),
+	                      MakeFunctionDescription(
+	                          {"model", "device_id"},
+	                          "Like whisper_voice_query, but prepends _generated_sql and _transcription columns to the "
+	                          "query result.",
+	                          {"SELECT * FROM whisper_voice_query_with_sql();"}, {"whisper", "voice_query"}));
 }
 
 } // namespace duckdb

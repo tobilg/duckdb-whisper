@@ -4,6 +4,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 
+#include "function_description.hpp"
 #include "transcription_engine.hpp"
 #include "whisper_config.hpp"
 
@@ -179,7 +180,16 @@ void RegisterTranscribeTableFunctions(ExtensionLoader &loader) {
 	                   TranscribeSegmentsExecute, TranscribeSegmentsBind, TranscribeSegmentsInit);
 	transcribe_segments_set.AddFunction(tf6t);
 
-	loader.RegisterFunction(transcribe_segments_set);
+	RegisterTableFunction(
+	    loader, std::move(transcribe_segments_set),
+	    MakeFunctionDescription(
+	        {"audio", "model", "language", "translate"},
+	        "Transcribes an audio file path (VARCHAR) or audio bytes (BLOB) into timestamped segments: "
+	        "segment_id, start_time, end_time, text, confidence and language. Optional arguments override the model "
+	        "and "
+	        "language settings; translate = true translates the speech to English.",
+	        {"SELECT start_time, end_time, text FROM whisper_transcribe_segments('audio.wav', 'tiny.en');"},
+	        {"whisper", "transcription"}));
 }
 
 } // namespace duckdb

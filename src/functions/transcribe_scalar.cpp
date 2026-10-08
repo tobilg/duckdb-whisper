@@ -3,6 +3,7 @@
 
 #include "duckdb/common/exception.hpp"
 
+#include "function_description.hpp"
 #include "transcription_engine.hpp"
 #include "whisper_config.hpp"
 
@@ -170,7 +171,12 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 	transcribe_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR},
 	                                                        LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
 
-	loader.RegisterFunction(transcribe_set);
+	RegisterScalarFunction(
+	    loader, std::move(transcribe_set),
+	    MakeFunctionDescription({"audio", "model"},
+	                            "Transcribes speech from an audio file path (VARCHAR) or from audio bytes (BLOB) "
+	                            "and returns the full text. The optional model overrides the whisper_model setting.",
+	                            {"whisper_transcribe('audio.wav', 'tiny.en')"}, {"whisper", "transcription"}));
 
 	// whisper_translate(file_path VARCHAR, [model VARCHAR]) -> VARCHAR
 	// Translates audio from any language to English
@@ -192,7 +198,12 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 	translate_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR},
 	                                                       LogicalType::VARCHAR, WhisperTranslateBlobFunction));
 
-	loader.RegisterFunction(translate_set);
+	RegisterScalarFunction(
+	    loader, std::move(translate_set),
+	    MakeFunctionDescription({"audio", "model"},
+	                            "Translates speech in any supported language from an audio file path (VARCHAR) or "
+	                            "from audio bytes (BLOB) into English text. Requires a multilingual (non-.en) model.",
+	                            {"whisper_translate('german_speech.mp3', 'small')"}, {"whisper", "transcription"}));
 }
 
 } // namespace duckdb

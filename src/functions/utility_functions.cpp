@@ -5,6 +5,7 @@
 #include "duckdb/common/exception.hpp"
 
 #include "audio_utils.hpp"
+#include "function_description.hpp"
 #include "whisper_config.hpp"
 #include "whisper.h"
 
@@ -12,7 +13,7 @@ namespace duckdb {
 
 // Extension version
 #ifndef EXT_VERSION_WHISPER
-#define EXT_VERSION_WHISPER "0.5.0"
+#define EXT_VERSION_WHISPER "0.6.0"
 #endif
 
 static std::string FormatExtensionVersion(const std::string &version) {
@@ -283,51 +284,76 @@ static void WhisperGetVoiceQueryShowSqlFunction(DataChunk &args, ExpressionState
 
 void RegisterUtilityFunctions(ExtensionLoader &loader) {
 	// whisper_version()
-	auto version_func = ScalarFunction("whisper_version", {}, LogicalType::VARCHAR, WhisperVersionFunction);
-	loader.RegisterFunction(version_func);
+	RegisterScalarFunction(
+	    loader, ScalarFunction("whisper_version", {}, LogicalType::VARCHAR, WhisperVersionFunction),
+	    MakeFunctionDescription({}, "Returns the whisper extension version and the bundled whisper.cpp version.",
+	                            {"whisper_version()"}, {"whisper", "utility"}));
 
 	// whisper_check_audio(file_path)
-	auto check_func =
-	    ScalarFunction("whisper_check_audio", {LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperCheckAudioFunction);
-	loader.RegisterFunction(check_func);
+	RegisterScalarFunction(
+	    loader,
+	    ScalarFunction("whisper_check_audio", {LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperCheckAudioFunction),
+	    MakeFunctionDescription({"file_path"},
+	                            "Checks whether an audio file can be opened and decoded by FFmpeg. Returns 'OK' on "
+	                            "success, or 'Error: <reason>' otherwise.",
+	                            {"whisper_check_audio('audio.wav')"}, {"whisper", "audio"}));
 
 	// whisper_audio_info(file_path)
-	TableFunction audio_info("whisper_audio_info", {LogicalType::VARCHAR}, AudioInfoExecute, AudioInfoBind,
-	                         AudioInfoInit);
-	loader.RegisterFunction(audio_info);
+	RegisterTableFunction(
+	    loader,
+	    TableFunction("whisper_audio_info", {LogicalType::VARCHAR}, AudioInfoExecute, AudioInfoBind, AudioInfoInit),
+	    MakeFunctionDescription({"file_path"},
+	                            "Returns one row of audio file metadata: file_path, duration_seconds, sample_rate, "
+	                            "channels, format and file_size.",
+	                            {"SELECT * FROM whisper_audio_info('audio.wav');"}, {"whisper", "audio"}));
 
 	// Configuration getter functions
-	auto get_device_id = ScalarFunction("whisper_get_device_id", {}, LogicalType::INTEGER, WhisperGetDeviceIdFunction);
-	loader.RegisterFunction(get_device_id);
+	RegisterScalarFunction(
+	    loader, ScalarFunction("whisper_get_device_id", {}, LogicalType::INTEGER, WhisperGetDeviceIdFunction),
+	    MakeFunctionDescription({}, "Returns the current whisper_device_id setting (-1 means the default device).",
+	                            {"whisper_get_device_id()"}, {"whisper", "configuration"}));
 
-	auto get_max_duration =
-	    ScalarFunction("whisper_get_max_duration", {}, LogicalType::DOUBLE, WhisperGetMaxDurationFunction);
-	loader.RegisterFunction(get_max_duration);
+	RegisterScalarFunction(
+	    loader, ScalarFunction("whisper_get_max_duration", {}, LogicalType::DOUBLE, WhisperGetMaxDurationFunction),
+	    MakeFunctionDescription({}, "Returns the current whisper_max_duration setting in seconds.",
+	                            {"whisper_get_max_duration()"}, {"whisper", "configuration"}));
 
-	auto get_silence_duration =
-	    ScalarFunction("whisper_get_silence_duration", {}, LogicalType::DOUBLE, WhisperGetSilenceDurationFunction);
-	loader.RegisterFunction(get_silence_duration);
+	RegisterScalarFunction(
+	    loader,
+	    ScalarFunction("whisper_get_silence_duration", {}, LogicalType::DOUBLE, WhisperGetSilenceDurationFunction),
+	    MakeFunctionDescription({}, "Returns the current whisper_silence_duration setting in seconds.",
+	                            {"whisper_get_silence_duration()"}, {"whisper", "configuration"}));
 
-	auto get_silence_threshold =
-	    ScalarFunction("whisper_get_silence_threshold", {}, LogicalType::DOUBLE, WhisperGetSilenceThresholdFunction);
-	loader.RegisterFunction(get_silence_threshold);
+	RegisterScalarFunction(
+	    loader,
+	    ScalarFunction("whisper_get_silence_threshold", {}, LogicalType::DOUBLE, WhisperGetSilenceThresholdFunction),
+	    MakeFunctionDescription({}, "Returns the current whisper_silence_threshold setting (RMS amplitude).",
+	                            {"whisper_get_silence_threshold()"}, {"whisper", "configuration"}));
 
-	auto get_config = ScalarFunction("whisper_get_config", {}, LogicalType::VARCHAR, WhisperGetConfigFunction);
-	loader.RegisterFunction(get_config);
+	RegisterScalarFunction(
+	    loader, ScalarFunction("whisper_get_config", {}, LogicalType::VARCHAR, WhisperGetConfigFunction),
+	    MakeFunctionDescription({}, "Returns all effective whisper settings as a comma-separated key=value string.",
+	                            {"whisper_get_config()"}, {"whisper", "configuration"}));
 
 #ifdef WHISPER_ENABLE_VOICE_QUERY
 	// Voice query configuration getter functions
-	auto get_text_to_sql_url =
-	    ScalarFunction("whisper_get_text_to_sql_url", {}, LogicalType::VARCHAR, WhisperGetTextToSqlUrlFunction);
-	loader.RegisterFunction(get_text_to_sql_url);
+	RegisterScalarFunction(
+	    loader, ScalarFunction("whisper_get_text_to_sql_url", {}, LogicalType::VARCHAR, WhisperGetTextToSqlUrlFunction),
+	    MakeFunctionDescription({}, "Returns the current whisper_text_to_sql_url setting (the text-to-SQL proxy URL).",
+	                            {"whisper_get_text_to_sql_url()"}, {"whisper", "configuration"}));
 
-	auto get_text_to_sql_timeout =
-	    ScalarFunction("whisper_get_text_to_sql_timeout", {}, LogicalType::INTEGER, WhisperGetTextToSqlTimeoutFunction);
-	loader.RegisterFunction(get_text_to_sql_timeout);
+	RegisterScalarFunction(
+	    loader,
+	    ScalarFunction("whisper_get_text_to_sql_timeout", {}, LogicalType::INTEGER, WhisperGetTextToSqlTimeoutFunction),
+	    MakeFunctionDescription({}, "Returns the current whisper_text_to_sql_timeout setting in seconds.",
+	                            {"whisper_get_text_to_sql_timeout()"}, {"whisper", "configuration"}));
 
-	auto get_voice_query_show_sql = ScalarFunction("whisper_get_voice_query_show_sql", {}, LogicalType::BOOLEAN,
-	                                               WhisperGetVoiceQueryShowSqlFunction);
-	loader.RegisterFunction(get_voice_query_show_sql);
+	RegisterScalarFunction(loader,
+	                       ScalarFunction("whisper_get_voice_query_show_sql", {}, LogicalType::BOOLEAN,
+	                                      WhisperGetVoiceQueryShowSqlFunction),
+	                       MakeFunctionDescription({}, "Returns the current whisper_voice_query_show_sql setting.",
+	                                               {"whisper_get_voice_query_show_sql()"},
+	                                               {"whisper", "configuration"}));
 #endif
 }
 

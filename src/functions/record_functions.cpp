@@ -7,6 +7,7 @@
 #include "duckdb/common/printer.hpp"
 
 #include "audio_recorder.hpp"
+#include "function_description.hpp"
 #include "transcription_engine.hpp"
 #include "whisper_config.hpp"
 
@@ -382,8 +383,13 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 
 void RegisterRecordFunctions(ExtensionLoader &loader) {
 	// whisper_list_devices() -> TABLE(device_id INTEGER, device_name VARCHAR)
-	TableFunction list_devices("whisper_list_devices", {}, ListDevicesExecute, ListDevicesBind, ListDevicesInit);
-	loader.RegisterFunction(list_devices);
+	RegisterTableFunction(
+	    loader, TableFunction("whisper_list_devices", {}, ListDevicesExecute, ListDevicesBind, ListDevicesInit),
+	    MakeFunctionDescription(
+	        {},
+	        "Lists the available audio input devices (device_id, device_name). Use a device_id with "
+	        "the recording functions or the whisper_device_id setting.",
+	        {"SELECT * FROM whisper_list_devices();"}, {"whisper", "recording"}));
 
 	// whisper_record(duration_seconds INTEGER, [model VARCHAR], [device_id INTEGER]) -> VARCHAR
 	ScalarFunctionSet record_set("whisper_record");
@@ -396,7 +402,12 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	record_set.AddFunction(ScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER},
 	                                      LogicalType::VARCHAR, WhisperRecordFunction));
 
-	loader.RegisterFunction(record_set);
+	RegisterScalarFunction(
+	    loader, std::move(record_set),
+	    MakeFunctionDescription({"duration_seconds", "model", "device_id"},
+	                            "Records audio from the microphone for a fixed number of seconds and returns the "
+	                            "transcribed text. Optional arguments override the model and input device.",
+	                            {"whisper_record(5, 'tiny.en')"}, {"whisper", "recording"}));
 
 	// whisper_record_translate(duration_seconds INTEGER, [model VARCHAR], [device_id INTEGER]) -> VARCHAR
 	ScalarFunctionSet record_translate_set("whisper_record_translate");
@@ -410,7 +421,12 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	record_translate_set.AddFunction(ScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER},
 	                                                LogicalType::VARCHAR, WhisperRecordTranslateFunction));
 
-	loader.RegisterFunction(record_translate_set);
+	RegisterScalarFunction(loader, std::move(record_translate_set),
+	                       MakeFunctionDescription(
+	                           {"duration_seconds", "model", "device_id"},
+	                           "Records audio from the microphone for a fixed number of seconds and returns the speech "
+	                           "translated to English. Requires a multilingual (non-.en) model.",
+	                           {"whisper_record_translate(5, 'small')"}, {"whisper", "recording"}));
 
 	// whisper_record_auto(max_seconds INTEGER, [silence_seconds DOUBLE], [model VARCHAR], [threshold DOUBLE],
 	// [device_id INTEGER]) -> VARCHAR Default silence_seconds = 2.0
@@ -438,7 +454,13 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	    {LogicalType::INTEGER, LogicalType::DOUBLE, LogicalType::VARCHAR, LogicalType::DOUBLE, LogicalType::INTEGER},
 	    LogicalType::VARCHAR, WhisperRecordAutoFunction));
 
-	loader.RegisterFunction(record_auto_set);
+	RegisterScalarFunction(loader, std::move(record_auto_set),
+	                       MakeFunctionDescription(
+	                           {"max_seconds", "silence_seconds", "model", "threshold", "device_id"},
+	                           "Records audio from the microphone until silence_seconds of silence are detected or "
+	                           "max_seconds is reached, then returns the transcribed text. Omitted arguments fall back "
+	                           "to the whisper_silence_duration, whisper_model and whisper_silence_threshold settings.",
+	                           {"whisper_record_auto(30, 2.0, 'tiny.en')"}, {"whisper", "recording"}));
 
 	// whisper_mic_level(duration_seconds INTEGER, [device_id INTEGER]) -> VARCHAR
 	// Utility to check microphone amplitude levels
@@ -449,7 +471,12 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	mic_level_set.AddFunction(
 	    ScalarFunction({LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperMicLevelFunction));
 
-	loader.RegisterFunction(mic_level_set);
+	RegisterScalarFunction(loader, std::move(mic_level_set),
+	                       MakeFunctionDescription(
+	                           {"duration_seconds", "device_id"},
+	                           "Samples the microphone for a few seconds and reports the peak and RMS amplitude with a "
+	                           "suggested whisper_silence_threshold value.",
+	                           {"whisper_mic_level(3)"}, {"whisper", "recording"}));
 }
 
 } // namespace duckdb
