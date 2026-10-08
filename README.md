@@ -259,7 +259,11 @@ SELECT * FROM whisper_list_models() WHERE is_downloaded = true;
 
 #### `whisper_download_model(model_name)`
 
-Returns download instructions for a model.
+Downloads a model into the `whisper_model_path` directory and returns a status message. Does nothing if the model is already downloaded.
+
+```sql
+SELECT whisper_download_model('tiny.en');
+```
 
 ### Utility Functions
 
