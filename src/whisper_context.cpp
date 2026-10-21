@@ -43,6 +43,11 @@ WhisperContextWrapper &WhisperContextWrapper::operator=(WhisperContextWrapper &&
 	return *this;
 }
 
+// Cache key that includes GPU setting
+std::string WhisperContextManager::GetCacheKey(const std::string &model_path, bool use_gpu) {
+	return model_path + (use_gpu ? ":gpu" : ":cpu");
+}
+
 WhisperContextManager &WhisperContextManager::GetInstance() {
 	// Use a pointer that intentionally leaks to avoid Metal cleanup assertion
 	// at program exit. The OS will reclaim resources anyway.
@@ -57,8 +62,7 @@ std::shared_ptr<WhisperContextWrapper> WhisperContextManager::GetContext(const s
 	// Suppress verbose logging from whisper.cpp
 	SuppressWhisperLogs();
 
-	// Create cache key that includes GPU setting
-	std::string cache_key = model_path + (use_gpu ? ":gpu" : ":cpu");
+	std::string cache_key = GetCacheKey(model_path, use_gpu);
 
 	// Check if already cached
 	auto it = contexts_.find(cache_key);
@@ -84,7 +88,8 @@ std::shared_ptr<WhisperContextWrapper> WhisperContextManager::GetContext(const s
 
 void WhisperContextManager::ClearContext(const std::string &model_path) {
 	std::lock_guard<std::mutex> lock(mutex_);
-	contexts_.erase(model_path);
+	contexts_.erase(GetCacheKey(model_path, true));
+	contexts_.erase(GetCacheKey(model_path, false));
 }
 
 void WhisperContextManager::ClearAllContexts() {

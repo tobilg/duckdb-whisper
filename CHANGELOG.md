@@ -5,6 +5,25 @@ All notable changes to the DuckDB Whisper Extension will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-21
+
+### Changed
+
+- Requires DuckDB v2.0.0 (built against DuckDB v2.0.0 and extension-ci-tools v2.0-cyanoptera)
+- `whisper_download_model()` is now volatile and fallible, so invalid model names raise a normal error on DuckDB v2.0
+- A NULL model argument to `whisper_transcribe()` / `whisper_translate()` now returns NULL
+
+### Fixed
+
+- Parameter names of all functions are shown again in `duckdb_functions()` on DuckDB v2.0
+- The model argument of `whisper_transcribe()` / `whisper_translate()` is applied per row instead of using the
+  first row's model for all rows
+- Optional arguments of the recording and voice-to-SQL functions are read per row and NULL values fall back to the
+  configured settings
+- Recording and voice-to-SQL functions are volatile, so they are no longer constant folded (e.g. recording during
+  `EXPLAIN`)
+- Concurrent transcriptions no longer share a whisper context without synchronization
+
 ## [0.1.0] - 2025-01-28
 
 ### Added

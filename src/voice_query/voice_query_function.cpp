@@ -31,7 +31,7 @@ struct VoiceQueryBindData : public TableFunctionData {
 	std::string transcription;
 	bool include_metadata; // true for whisper_voice_query_with_sql
 	vector<LogicalType> result_types;
-	vector<string> result_names;
+	vector<Identifier> result_names;
 	// Separate connection to avoid deadlock when executing generated SQL
 	shared_ptr<Connection> query_connection;
 };
@@ -179,7 +179,7 @@ static void RecordAndGenerateSQLWithTimeout(ClientContext &context, const Whispe
 // ============================================================================
 
 static unique_ptr<FunctionData> VoiceQueryBind(ClientContext &context, TableFunctionBindInput &input,
-                                               vector<LogicalType> &return_types, vector<string> &names) {
+                                               vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto bind_data = make_uniq<VoiceQueryBindData>();
 	bind_data->include_metadata = false;
 
@@ -244,7 +244,6 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 	auto &state = data.global_state->Cast<VoiceQueryState>();
 
 	if (state.finished) {
-		output.SetCardinality(0);
 		return;
 	}
 
@@ -265,7 +264,6 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 
 		if (!state.current_chunk || state.current_chunk->size() == 0) {
 			state.finished = true;
-			output.SetCardinality(0);
 			return;
 		}
 	}
@@ -277,20 +275,18 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 	while (state.current_row < state.current_chunk->size() && output_count < STANDARD_VECTOR_SIZE) {
 		// If including metadata columns, set them for each row
 		if (bind_data.include_metadata) {
-			output.SetValue(0, output_count, Value(bind_data.generated_sql));
-			output.SetValue(1, output_count, Value(bind_data.transcription));
+			output.data[0].Append(Value(bind_data.generated_sql));
+			output.data[1].Append(Value(bind_data.transcription));
 		}
 
 		// Copy result columns
 		for (idx_t col = 0; col < state.current_chunk->ColumnCount(); col++) {
-			output.SetValue(col + col_offset, output_count, state.current_chunk->GetValue(col, state.current_row));
+			output.data[col + col_offset].Append(state.current_chunk->GetValue(col, state.current_row));
 		}
 
 		state.current_row++;
 		output_count++;
 	}
-
-	output.SetCardinality(output_count);
 
 	// Check if we need to fetch more
 	if (state.current_row >= state.current_chunk->size()) {
@@ -308,7 +304,7 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 // ============================================================================
 
 static unique_ptr<FunctionData> VoiceQueryWithSqlBind(ClientContext &context, TableFunctionBindInput &input,
-                                                      vector<LogicalType> &return_types, vector<string> &names) {
+                                                      vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto bind_data = make_uniq<VoiceQueryBindData>();
 	bind_data->include_metadata = true;
 

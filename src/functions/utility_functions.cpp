@@ -13,7 +13,7 @@ namespace duckdb {
 
 // Extension version
 #ifndef EXT_VERSION_WHISPER
-#define EXT_VERSION_WHISPER "0.6.0"
+#define EXT_VERSION_WHISPER "0.7.0"
 #endif
 
 static std::string FormatExtensionVersion(const std::string &version) {
@@ -80,7 +80,7 @@ struct AudioInfoState : public GlobalTableFunctionState {
 };
 
 static unique_ptr<FunctionData> AudioInfoBind(ClientContext &context, TableFunctionBindInput &input,
-                                              vector<LogicalType> &return_types, vector<string> &names) {
+                                              vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto bind_data = make_uniq<AudioInfoBindData>();
 	bind_data->file_path = input.inputs[0].GetValue<string>();
 
@@ -114,7 +114,6 @@ static void AudioInfoExecute(ClientContext &context, TableFunctionInput &data, D
 	auto &state = data.global_state->Cast<AudioInfoState>();
 
 	if (state.returned) {
-		output.SetCardinality(0);
 		return;
 	}
 
@@ -129,14 +128,13 @@ static void AudioInfoExecute(ClientContext &context, TableFunctionInput &data, D
 		throw InvalidInputException("Failed to read audio info: " + error);
 	}
 
-	output.SetValue(0, 0, Value(bind_data.file_path));
-	output.SetValue(1, 0, Value::DOUBLE(metadata.duration_seconds));
-	output.SetValue(2, 0, Value::INTEGER(metadata.sample_rate));
-	output.SetValue(3, 0, Value::INTEGER(metadata.channels));
-	output.SetValue(4, 0, Value(metadata.format));
-	output.SetValue(5, 0, Value::BIGINT(metadata.file_size));
+	output.data[0].Append(Value(bind_data.file_path));
+	output.data[1].Append(Value::DOUBLE(metadata.duration_seconds));
+	output.data[2].Append(Value::INTEGER(metadata.sample_rate));
+	output.data[3].Append(Value::INTEGER(metadata.channels));
+	output.data[4].Append(Value(metadata.format));
+	output.data[5].Append(Value::BIGINT(metadata.file_size));
 
-	output.SetCardinality(1);
 	state.returned = true;
 }
 

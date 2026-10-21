@@ -30,8 +30,15 @@ public:
 		return ctx_ != nullptr;
 	}
 
+	// whisper_full() keeps its results in the context's default state, so a context must not run two
+	// transcriptions at once. Hold this lock from whisper_full() until all results have been read.
+	std::mutex &GetMutex() {
+		return mutex_;
+	}
+
 private:
 	whisper_context *ctx_;
+	std::mutex mutex_;
 };
 
 // Cached context manager (singleton pattern per database)
@@ -42,7 +49,7 @@ public:
 	// Get or create a context for the given model
 	std::shared_ptr<WhisperContextWrapper> GetContext(const std::string &model_path, bool use_gpu, std::string &error);
 
-	// Clear cached context for a model
+	// Clear cached contexts (GPU and CPU) for a model
 	void ClearContext(const std::string &model_path);
 
 	// Clear all cached contexts
@@ -50,6 +57,8 @@ public:
 
 private:
 	WhisperContextManager() = default;
+
+	static std::string GetCacheKey(const std::string &model_path, bool use_gpu);
 	~WhisperContextManager() = default;
 
 	std::mutex mutex_;

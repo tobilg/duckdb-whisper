@@ -33,7 +33,7 @@ struct TranscribeSegmentsState : public GlobalTableFunctionState {
 };
 
 static unique_ptr<FunctionData> TranscribeSegmentsBind(ClientContext &context, TableFunctionBindInput &input,
-                                                       vector<LogicalType> &return_types, vector<string> &names) {
+                                                       vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto bind_data = make_uniq<TranscribeSegmentsBindData>();
 
 	// Get input argument
@@ -125,18 +125,16 @@ static void TranscribeSegmentsExecute(ClientContext &context, TableFunctionInput
 	while (state.current_segment < state.result.segments.size() && output_idx < STANDARD_VECTOR_SIZE) {
 		const auto &segment = state.result.segments[state.current_segment];
 
-		output.SetValue(0, output_idx, Value::INTEGER(segment.segment_id));
-		output.SetValue(1, output_idx, Value::DOUBLE(segment.start_time));
-		output.SetValue(2, output_idx, Value::DOUBLE(segment.end_time));
-		output.SetValue(3, output_idx, Value(segment.text));
-		output.SetValue(4, output_idx, Value::DOUBLE(segment.confidence));
-		output.SetValue(5, output_idx, Value(segment.language));
+		output.data[0].Append(Value::INTEGER(segment.segment_id));
+		output.data[1].Append(Value::DOUBLE(segment.start_time));
+		output.data[2].Append(Value::DOUBLE(segment.end_time));
+		output.data[3].Append(Value(segment.text));
+		output.data[4].Append(Value::DOUBLE(segment.confidence));
+		output.data[5].Append(Value(segment.language));
 
 		state.current_segment++;
 		output_idx++;
 	}
-
-	output.SetCardinality(output_idx);
 }
 
 void RegisterTranscribeTableFunctions(ExtensionLoader &loader) {

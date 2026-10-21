@@ -5,6 +5,7 @@
 #include "whisper.h"
 
 #include <cstring>
+#include <mutex>
 #include <thread>
 
 namespace duckdb {
@@ -93,6 +94,9 @@ TranscriptionResult TranscriptionEngine::TranscribePCM(const std::vector<float> 
 	wparams.single_segment = false;
 	wparams.max_len = config.max_segment_length / 10; // max_len is in tokens, rough approximation
 
+	// Serialize use of the shared context; results are read from it below
+	std::lock_guard<std::mutex> ctx_lock(ctx_wrapper->GetMutex());
+
 	// Run transcription
 	int ret = whisper_full(ctx, wparams, pcm_data.data(), pcm_data.size());
 	if (ret != 0) {
@@ -106,6 +110,9 @@ TranscriptionResult TranscriptionEngine::TranscribePCM(const std::vector<float> 
 
 	std::string full_text;
 
+	// whisper.cpp detects the language once per run, so all segments share it
+	std::string language = GetLanguageCode(whisper_full_lang_id(ctx));
+
 	for (int i = 0; i < n_segments; i++) {
 		TranscriptionSegment segment;
 		segment.segment_id = i;
@@ -117,9 +124,7 @@ TranscriptionResult TranscriptionEngine::TranscribePCM(const std::vector<float> 
 
 		segment.confidence = CalculateSegmentConfidence(ctx, i);
 
-		// Get language for this segment
-		int lang_id = whisper_full_lang_id(ctx);
-		segment.language = GetLanguageCode(lang_id);
+		segment.language = language;
 
 		result.segments.push_back(segment);
 

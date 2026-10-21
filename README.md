@@ -18,6 +18,8 @@ Transcribe audio files directly from SQL queries in DuckDB, making it easy to pr
 
 ### Community Extension (Recommended)
 
+Version 0.7.0 and later require DuckDB v2.0.0 or newer. DuckDB v1.5.x uses version 0.6.0 of this extension.
+
 ```sql
 INSTALL whisper FROM community;
 LOAD whisper;

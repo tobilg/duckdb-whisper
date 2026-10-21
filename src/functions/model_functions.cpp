@@ -27,7 +27,7 @@ struct ListModelsState : public GlobalTableFunctionState {
 };
 
 static unique_ptr<FunctionData> ListModelsBind(ClientContext &context, TableFunctionBindInput &input,
-                                               vector<LogicalType> &return_types, vector<string> &names) {
+                                               vector<LogicalType> &return_types, vector<Identifier> &names) {
 	return_types.push_back(LogicalType::VARCHAR); // name
 	names.push_back("name");
 
@@ -60,17 +60,15 @@ static void ListModelsExecute(ClientContext &context, TableFunctionInput &data, 
 	while (state.current_idx < state.models.size() && output_idx < STANDARD_VECTOR_SIZE) {
 		const auto &model = state.models[state.current_idx];
 
-		output.SetValue(0, output_idx, Value(model.name));
-		output.SetValue(1, output_idx, Value::BOOLEAN(model.is_downloaded));
-		output.SetValue(2, output_idx, model.is_downloaded ? Value::BIGINT(model.file_size) : Value());
-		output.SetValue(3, output_idx, Value(model.file_path));
-		output.SetValue(4, output_idx, Value(model.description));
+		output.data[0].Append(Value(model.name));
+		output.data[1].Append(Value::BOOLEAN(model.is_downloaded));
+		output.data[2].Append(model.is_downloaded ? Value::BIGINT(model.file_size) : Value());
+		output.data[3].Append(Value(model.file_path));
+		output.data[4].Append(Value(model.description));
 
 		state.current_idx++;
 		output_idx++;
 	}
-
-	output.SetCardinality(output_idx);
 }
 
 // ============================================================================
@@ -122,7 +120,7 @@ struct ModelInfoState : public GlobalTableFunctionState {
 };
 
 static unique_ptr<FunctionData> ModelInfoBind(ClientContext &context, TableFunctionBindInput &input,
-                                              vector<LogicalType> &return_types, vector<string> &names) {
+                                              vector<LogicalType> &return_types, vector<Identifier> &names) {
 	return_types.push_back(LogicalType::VARCHAR); // current_model
 	names.push_back("current_model");
 
@@ -155,20 +153,18 @@ static void ModelInfoExecute(ClientContext &context, TableFunctionInput &data, D
 	auto &state = data.global_state->Cast<ModelInfoState>();
 
 	if (state.returned) {
-		output.SetCardinality(0);
 		return;
 	}
 
 	auto config = WhisperConfigManager::GetConfig(context);
 
-	output.SetValue(0, 0, Value(config.model));
-	output.SetValue(1, 0, Value(state.info.file_path));
-	output.SetValue(2, 0, Value::BOOLEAN(state.info.is_downloaded));
-	output.SetValue(3, 0, state.info.is_downloaded ? Value::BIGINT(state.info.file_size) : Value());
-	output.SetValue(4, 0, Value(config.language));
-	output.SetValue(5, 0, Value::INTEGER(config.threads));
+	output.data[0].Append(Value(config.model));
+	output.data[1].Append(Value(state.info.file_path));
+	output.data[2].Append(Value::BOOLEAN(state.info.is_downloaded));
+	output.data[3].Append(state.info.is_downloaded ? Value::BIGINT(state.info.file_size) : Value());
+	output.data[4].Append(Value(config.language));
+	output.data[5].Append(Value::INTEGER(config.threads));
 
-	output.SetCardinality(1);
 	state.returned = true;
 }
 
@@ -186,10 +182,11 @@ void RegisterModelFunctions(ExtensionLoader &loader) {
 	                            {"SELECT * FROM whisper_list_models() WHERE is_downloaded;"}, {"whisper", "model"}));
 
 	// whisper_download_model(model_name)
+	ScalarFunctionSet download_set("whisper_download_model");
+	download_set.AddFunction(
+	    MakeIOScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperDownloadModelFunction));
 	RegisterScalarFunction(
-	    loader,
-	    ScalarFunction("whisper_download_model", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                   WhisperDownloadModelFunction),
+	    loader, std::move(download_set),
 	    MakeFunctionDescription({"model_name"},
 	                            "Downloads a Whisper model into the whisper_model_path directory and returns a status "
 	                            "message. Does nothing if the model is already downloaded.",

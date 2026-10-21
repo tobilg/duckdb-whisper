@@ -35,7 +35,7 @@ struct ListDevicesState : public GlobalTableFunctionState {
 };
 
 static unique_ptr<FunctionData> ListDevicesBind(ClientContext &context, TableFunctionBindInput &input,
-                                                vector<LogicalType> &return_types, vector<string> &names) {
+                                                vector<LogicalType> &return_types, vector<Identifier> &names) {
 	return_types.push_back(LogicalType::INTEGER);
 	names.push_back("device_id");
 
@@ -56,27 +56,31 @@ static void ListDevicesExecute(ClientContext &context, TableFunctionInput &data,
 	while (state.current_idx < state.devices.size() && output_idx < STANDARD_VECTOR_SIZE) {
 		const auto &device = state.devices[state.current_idx];
 
-		output.SetValue(0, output_idx, Value::INTEGER(device.id));
-		output.SetValue(1, output_idx, Value(device.name));
+		output.data[0].Append(Value::INTEGER(device.id));
+		output.data[1].Append(Value(device.name));
 
 		state.current_idx++;
 		output_idx++;
 	}
-
-	output.SetCardinality(output_idx);
 }
 
 // ============================================================================
 // whisper_record(duration_seconds, [model], [device_id]) - Records and transcribes
+// whisper_record_translate(duration_seconds, [model], [device_id]) - Records and translates to English
 // ============================================================================
 
-static void WhisperRecordFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+static void ExecuteFixedRecording(DataChunk &args, ExpressionState &state, Vector &result, bool translate) {
 	auto &context = state.GetContext();
 	auto config = WhisperConfigManager::GetConfig(context);
+	if (translate) {
+		config.translate = true;
+	}
 
 	idx_t count = args.size();
 
-	// Get duration from first argument
+	// Flatten so every argument can be indexed per row (constant and dictionary vectors included)
+	args.Flatten();
+
 	auto &duration_vec = args.data[0];
 
 	// Check for optional model parameter
@@ -85,24 +89,23 @@ static void WhisperRecordFunction(DataChunk &args, ExpressionState &state, Vecto
 	// Check for optional device_id parameter
 	bool has_device = args.ColumnCount() > 2;
 
-	UnaryExecutor::Execute<int32_t, string_t>(duration_vec, result, count, [&](int32_t duration_seconds) {
+	for (idx_t i = 0; i < count; i++) {
+		if (FlatVector::IsNull(duration_vec, i)) {
+			FlatVector::SetNull(result, i, true);
+			continue;
+		}
+		int32_t duration_seconds = FlatVector::GetData<int32_t>(duration_vec)[i];
+
 		WhisperConfig local_config = config;
 
-		if (has_model) {
-			auto &model_vec = args.data[1];
-			if (model_vec.GetType().id() == LogicalTypeId::VARCHAR) {
-				auto model_val = FlatVector::GetData<string_t>(model_vec)[0];
-				local_config.model = model_val.GetString();
-			}
+		if (has_model && !FlatVector::IsNull(args.data[1], i)) {
+			local_config.model = FlatVector::GetData<string_t>(args.data[1])[i].GetString();
 		}
 
 		// Use configured device_id as default, override if parameter provided
 		int device_id = local_config.device_id;
-		if (has_device) {
-			auto &device_vec = args.data[2];
-			if (device_vec.GetType().id() == LogicalTypeId::INTEGER) {
-				device_id = FlatVector::GetData<int32_t>(device_vec)[0];
-			}
+		if (has_device && !FlatVector::IsNull(args.data[2], i)) {
+			device_id = FlatVector::GetData<int32_t>(args.data[2])[i];
 		}
 
 		// Start recording
@@ -134,78 +137,20 @@ static void WhisperRecordFunction(DataChunk &args, ExpressionState &state, Vecto
 		TranscriptionResult transcription = TranscriptionEngine::TranscribePCM(pcm_data, local_config);
 
 		if (!transcription.success) {
-			throw InvalidInputException("Transcription failed: " + transcription.error);
+			throw InvalidInputException((translate ? "Translation failed: " : "Transcription failed: ") +
+			                            transcription.error);
 		}
 
-		return StringVector::AddString(result, transcription.full_text);
-	});
+		FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, transcription.full_text);
+	}
 }
 
-// ============================================================================
-// whisper_record_translate(duration_seconds, [model], [device_id]) - Records and translates to English
-// ============================================================================
+static void WhisperRecordFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	ExecuteFixedRecording(args, state, result, false);
+}
 
 static void WhisperRecordTranslateFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto config = WhisperConfigManager::GetConfig(context);
-	config.translate = true;
-
-	idx_t count = args.size();
-
-	auto &duration_vec = args.data[0];
-	bool has_model = args.ColumnCount() > 1;
-	bool has_device = args.ColumnCount() > 2;
-
-	UnaryExecutor::Execute<int32_t, string_t>(duration_vec, result, count, [&](int32_t duration_seconds) {
-		WhisperConfig local_config = config;
-
-		if (has_model) {
-			auto &model_vec = args.data[1];
-			if (model_vec.GetType().id() == LogicalTypeId::VARCHAR) {
-				auto model_val = FlatVector::GetData<string_t>(model_vec)[0];
-				local_config.model = model_val.GetString();
-			}
-		}
-
-		// Use configured device_id as default, override if parameter provided
-		int device_id = local_config.device_id;
-		if (has_device) {
-			auto &device_vec = args.data[2];
-			if (device_vec.GetType().id() == LogicalTypeId::INTEGER) {
-				device_id = FlatVector::GetData<int32_t>(device_vec)[0];
-			}
-		}
-
-		AudioRecorder recorder;
-		std::string error;
-
-		if (!recorder.StartRecording(device_id, error)) {
-			throw InvalidInputException("Failed to start recording: " + error);
-		}
-
-		if (local_config.verbose) {
-			Printer::Print(OutputStream::STREAM_STDERR, "Listening...");
-		}
-
-		std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
-
-		std::vector<float> pcm_data;
-		if (!recorder.StopRecording(pcm_data, error)) {
-			throw InvalidInputException("Failed to stop recording: " + error);
-		}
-
-		if (local_config.verbose) {
-			Printer::Print(OutputStream::STREAM_STDERR, "Stopped");
-		}
-
-		TranscriptionResult transcription = TranscriptionEngine::TranscribePCM(pcm_data, local_config);
-
-		if (!transcription.success) {
-			throw InvalidInputException("Translation failed: " + transcription.error);
-		}
-
-		return StringVector::AddString(result, transcription.full_text);
-	});
+	ExecuteFixedRecording(args, state, result, true);
 }
 
 // ============================================================================
@@ -217,15 +162,23 @@ static void WhisperMicLevelFunction(DataChunk &args, ExpressionState &state, Vec
 	auto config = WhisperConfigManager::GetConfig(context);
 
 	idx_t count = args.size();
+
+	// Flatten so every argument can be indexed per row (constant and dictionary vectors included)
+	args.Flatten();
+
 	auto &duration_vec = args.data[0];
 	bool has_device = args.ColumnCount() > 1;
 
 	for (idx_t i = 0; i < count; i++) {
+		if (FlatVector::IsNull(duration_vec, i)) {
+			FlatVector::SetNull(result, i, true);
+			continue;
+		}
 		int32_t duration_seconds = FlatVector::GetData<int32_t>(duration_vec)[i];
 
 		// Use configured device_id as default, override if parameter provided
 		int device_id = config.device_id;
-		if (has_device) {
+		if (has_device && !FlatVector::IsNull(args.data[1], i)) {
 			device_id = FlatVector::GetData<int32_t>(args.data[1])[i];
 		}
 
@@ -272,9 +225,9 @@ static void WhisperMicLevelFunction(DataChunk &args, ExpressionState &state, Vec
 
 			std::string result_str = "Peak: " + std::to_string(max_amplitude) + ", RMS: " + std::to_string(rms) +
 			                         " (suggested threshold: " + std::to_string(rms * 0.5f) + ")";
-			FlatVector::GetData<string_t>(result)[i] = StringVector::AddString(result, result_str);
+			FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, result_str);
 		} else {
-			FlatVector::GetData<string_t>(result)[i] = StringVector::AddString(result, "No audio captured");
+			FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, "No audio captured");
 		}
 	}
 }
@@ -290,6 +243,9 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 
 	idx_t count = args.size();
 	idx_t col_count = args.ColumnCount();
+
+	// Flatten so every argument can be indexed per row (constant and dictionary vectors included)
+	args.Flatten();
 
 	auto &max_duration_vec = args.data[0];
 
@@ -307,13 +263,17 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 	bool has_device = col_count > 4;
 
 	for (idx_t i = 0; i < count; i++) {
+		if (FlatVector::IsNull(max_duration_vec, i)) {
+			FlatVector::SetNull(result, i, true);
+			continue;
+		}
 		int32_t max_duration = FlatVector::GetData<int32_t>(max_duration_vec)[i];
 
 		WhisperConfig local_config = config;
 
 		// Use configured silence_duration as default, override if parameter provided
 		double silence_duration = local_config.silence_duration;
-		if (has_silence) {
+		if (has_silence && !FlatVector::IsNull(args.data[1], i)) {
 			silence_duration = FlatVector::GetData<double>(args.data[1])[i];
 		}
 
@@ -373,7 +333,7 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 			throw InvalidInputException("Transcription failed: " + transcription.error);
 		}
 
-		FlatVector::GetData<string_t>(result)[i] = StringVector::AddString(result, transcription.full_text);
+		FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, transcription.full_text);
 	}
 }
 
@@ -394,13 +354,13 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	// whisper_record(duration_seconds INTEGER, [model VARCHAR], [device_id INTEGER]) -> VARCHAR
 	ScalarFunctionSet record_set("whisper_record");
 
-	record_set.AddFunction(ScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperRecordFunction));
+	record_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperRecordFunction));
 
-	record_set.AddFunction(
-	    ScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperRecordFunction));
+	record_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                            WhisperRecordFunction));
 
-	record_set.AddFunction(ScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER},
-	                                      LogicalType::VARCHAR, WhisperRecordFunction));
+	record_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER},
+	                                            LogicalType::VARCHAR, WhisperRecordFunction));
 
 	RegisterScalarFunction(
 	    loader, std::move(record_set),
@@ -413,13 +373,14 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	ScalarFunctionSet record_translate_set("whisper_record_translate");
 
 	record_translate_set.AddFunction(
-	    ScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperRecordTranslateFunction));
+	    MakeIOScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperRecordTranslateFunction));
 
-	record_translate_set.AddFunction(ScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR}, LogicalType::VARCHAR,
-	                                                WhisperRecordTranslateFunction));
+	record_translate_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR},
+	                                                      LogicalType::VARCHAR, WhisperRecordTranslateFunction));
 
-	record_translate_set.AddFunction(ScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER},
-	                                                LogicalType::VARCHAR, WhisperRecordTranslateFunction));
+	record_translate_set.AddFunction(
+	    MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::VARCHAR, LogicalType::INTEGER}, LogicalType::VARCHAR,
+	                         WhisperRecordTranslateFunction));
 
 	RegisterScalarFunction(loader, std::move(record_translate_set),
 	                       MakeFunctionDescription(
@@ -434,23 +395,23 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 
 	// Just max_seconds (uses 2s default silence)
 	record_auto_set.AddFunction(
-	    ScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperRecordAutoFunction));
+	    MakeIOScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperRecordAutoFunction));
 
 	// max_seconds, silence_seconds
-	record_auto_set.AddFunction(
-	    ScalarFunction({LogicalType::INTEGER, LogicalType::DOUBLE}, LogicalType::VARCHAR, WhisperRecordAutoFunction));
+	record_auto_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::DOUBLE}, LogicalType::VARCHAR,
+	                                                 WhisperRecordAutoFunction));
 
 	// With model
-	record_auto_set.AddFunction(ScalarFunction({LogicalType::INTEGER, LogicalType::DOUBLE, LogicalType::VARCHAR},
-	                                           LogicalType::VARCHAR, WhisperRecordAutoFunction));
+	record_auto_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::DOUBLE, LogicalType::VARCHAR},
+	                                                 LogicalType::VARCHAR, WhisperRecordAutoFunction));
 
 	// With model and threshold
 	record_auto_set.AddFunction(
-	    ScalarFunction({LogicalType::INTEGER, LogicalType::DOUBLE, LogicalType::VARCHAR, LogicalType::DOUBLE},
-	                   LogicalType::VARCHAR, WhisperRecordAutoFunction));
+	    MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::DOUBLE, LogicalType::VARCHAR, LogicalType::DOUBLE},
+	                         LogicalType::VARCHAR, WhisperRecordAutoFunction));
 
 	// With model, threshold, and device_id
-	record_auto_set.AddFunction(ScalarFunction(
+	record_auto_set.AddFunction(MakeIOScalarFunction(
 	    {LogicalType::INTEGER, LogicalType::DOUBLE, LogicalType::VARCHAR, LogicalType::DOUBLE, LogicalType::INTEGER},
 	    LogicalType::VARCHAR, WhisperRecordAutoFunction));
 
@@ -466,10 +427,11 @@ void RegisterRecordFunctions(ExtensionLoader &loader) {
 	// Utility to check microphone amplitude levels
 	ScalarFunctionSet mic_level_set("whisper_mic_level");
 
-	mic_level_set.AddFunction(ScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperMicLevelFunction));
-
 	mic_level_set.AddFunction(
-	    ScalarFunction({LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperMicLevelFunction));
+	    MakeIOScalarFunction({LogicalType::INTEGER}, LogicalType::VARCHAR, WhisperMicLevelFunction));
+
+	mic_level_set.AddFunction(MakeIOScalarFunction({LogicalType::INTEGER, LogicalType::INTEGER}, LogicalType::VARCHAR,
+	                                               WhisperMicLevelFunction));
 
 	RegisterScalarFunction(loader, std::move(mic_level_set),
 	                       MakeFunctionDescription(

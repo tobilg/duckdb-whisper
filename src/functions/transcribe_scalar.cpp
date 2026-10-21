@@ -9,146 +9,62 @@
 
 namespace duckdb {
 
-static ScalarFunction MakeTranscribeScalarFunction(vector<LogicalType> arguments, LogicalType return_type,
-                                                   scalar_function_t function) {
-	ScalarFunction scalar_function(std::move(arguments), std::move(return_type), std::move(function));
-	scalar_function.SetVolatile();
-	scalar_function.SetFallible();
-	return scalar_function;
+// Shared implementation of whisper_transcribe and whisper_translate for file path (VARCHAR) and BLOB input.
+// The optional model argument is read per row, so a model column applies to its own row only.
+static void ExecuteTranscription(DataChunk &args, ExpressionState &state, Vector &result, bool is_blob,
+                                 bool translate) {
+	auto &context = state.GetContext();
+	auto config = WhisperConfigManager::GetConfig(context);
+	if (translate) {
+		config.translate = true; // Enable translation to English
+	}
+
+	auto transcribe = [&](string_t audio, const WhisperConfig &local_config) {
+		TranscriptionResult transcription;
+		if (is_blob) {
+			transcription = TranscriptionEngine::TranscribeMemory(reinterpret_cast<const uint8_t *>(audio.GetData()),
+			                                                      audio.GetSize(), local_config);
+		} else {
+			transcription = TranscriptionEngine::TranscribeFile(audio.GetString(), local_config);
+		}
+
+		if (!transcription.success) {
+			throw InvalidInputException((translate ? "Translation failed: " : "Transcription failed: ") +
+			                            transcription.error);
+		}
+
+		return StringVector::AddString(result, transcription.full_text);
+	};
+
+	if (args.ColumnCount() == 1) {
+		UnaryExecutor::Execute<string_t, string_t>(args.data[0], result, args.size(),
+		                                           [&](string_t audio) { return transcribe(audio, config); });
+	} else {
+		// Override model with the per-row model argument
+		BinaryExecutor::Execute<string_t, string_t, string_t>(args.data[0], args.data[1], result, args.size(),
+		                                                      [&](string_t audio, string_t model) {
+			                                                      WhisperConfig local_config = config;
+			                                                      local_config.model = model.GetString();
+			                                                      return transcribe(audio, local_config);
+		                                                      });
+	}
 }
 
 static void WhisperTranscribeFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto config = WhisperConfigManager::GetConfig(context);
-
-	auto &input = args.data[0];
-	idx_t count = args.size();
-
-	// Check if optional model parameter is provided
-	bool has_model_param = args.ColumnCount() > 1;
-
-	UnaryExecutor::Execute<string_t, string_t>(input, result, count, [&](string_t input_val) {
-		// Override model if parameter provided
-		WhisperConfig local_config = config;
-		if (has_model_param) {
-			auto &model_vec = args.data[1];
-			if (model_vec.GetType().id() == LogicalTypeId::VARCHAR) {
-				auto model_val = FlatVector::GetData<string_t>(model_vec)[0];
-				local_config.model = model_val.GetString();
-			}
-		}
-
-		// Check if input is a file path (VARCHAR) or BLOB
-		TranscriptionResult transcription;
-
-		std::string input_str = input_val.GetString();
-
-		// Try to transcribe as file path
-		transcription = TranscriptionEngine::TranscribeFile(input_str, local_config);
-
-		if (!transcription.success) {
-			throw InvalidInputException("Transcription failed: " + transcription.error);
-		}
-
-		return StringVector::AddString(result, transcription.full_text);
-	});
+	ExecuteTranscription(args, state, result, false, false);
 }
 
 static void WhisperTranscribeBlobFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto config = WhisperConfigManager::GetConfig(context);
-
-	auto &input = args.data[0];
-	idx_t count = args.size();
-
-	// Check if optional model parameter is provided
-	bool has_model_param = args.ColumnCount() > 1;
-
-	UnaryExecutor::Execute<string_t, string_t>(input, result, count, [&](string_t blob_val) {
-		// Override model if parameter provided
-		WhisperConfig local_config = config;
-		if (has_model_param) {
-			auto &model_vec = args.data[1];
-			if (model_vec.GetType().id() == LogicalTypeId::VARCHAR) {
-				auto model_val = FlatVector::GetData<string_t>(model_vec)[0];
-				local_config.model = model_val.GetString();
-			}
-		}
-
-		// Transcribe from BLOB
-		TranscriptionResult transcription = TranscriptionEngine::TranscribeMemory(
-		    reinterpret_cast<const uint8_t *>(blob_val.GetData()), blob_val.GetSize(), local_config);
-
-		if (!transcription.success) {
-			throw InvalidInputException("Transcription failed: " + transcription.error);
-		}
-
-		return StringVector::AddString(result, transcription.full_text);
-	});
+	ExecuteTranscription(args, state, result, true, false);
 }
 
 // whisper_translate - translates audio to English
 static void WhisperTranslateFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto config = WhisperConfigManager::GetConfig(context);
-	config.translate = true; // Enable translation to English
-
-	auto &input = args.data[0];
-	idx_t count = args.size();
-
-	// Check if optional model parameter is provided
-	bool has_model_param = args.ColumnCount() > 1;
-
-	UnaryExecutor::Execute<string_t, string_t>(input, result, count, [&](string_t input_val) {
-		WhisperConfig local_config = config;
-		if (has_model_param) {
-			auto &model_vec = args.data[1];
-			if (model_vec.GetType().id() == LogicalTypeId::VARCHAR) {
-				auto model_val = FlatVector::GetData<string_t>(model_vec)[0];
-				local_config.model = model_val.GetString();
-			}
-		}
-
-		std::string input_str = input_val.GetString();
-		TranscriptionResult transcription = TranscriptionEngine::TranscribeFile(input_str, local_config);
-
-		if (!transcription.success) {
-			throw InvalidInputException("Translation failed: " + transcription.error);
-		}
-
-		return StringVector::AddString(result, transcription.full_text);
-	});
+	ExecuteTranscription(args, state, result, false, true);
 }
 
 static void WhisperTranslateBlobFunction(DataChunk &args, ExpressionState &state, Vector &result) {
-	auto &context = state.GetContext();
-	auto config = WhisperConfigManager::GetConfig(context);
-	config.translate = true; // Enable translation to English
-
-	auto &input = args.data[0];
-	idx_t count = args.size();
-
-	bool has_model_param = args.ColumnCount() > 1;
-
-	UnaryExecutor::Execute<string_t, string_t>(input, result, count, [&](string_t blob_val) {
-		WhisperConfig local_config = config;
-		if (has_model_param) {
-			auto &model_vec = args.data[1];
-			if (model_vec.GetType().id() == LogicalTypeId::VARCHAR) {
-				auto model_val = FlatVector::GetData<string_t>(model_vec)[0];
-				local_config.model = model_val.GetString();
-			}
-		}
-
-		TranscriptionResult transcription = TranscriptionEngine::TranscribeMemory(
-		    reinterpret_cast<const uint8_t *>(blob_val.GetData()), blob_val.GetSize(), local_config);
-
-		if (!transcription.success) {
-			throw InvalidInputException("Translation failed: " + transcription.error);
-		}
-
-		return StringVector::AddString(result, transcription.full_text);
-	});
+	ExecuteTranscription(args, state, result, true, true);
 }
 
 void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
@@ -157,19 +73,19 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 
 	// Version with just file path
 	transcribe_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeFunction));
+	    MakeIOScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranscribeFunction));
 
 	// Version with file path and model override
-	transcribe_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR},
-	                                                        LogicalType::VARCHAR, WhisperTranscribeFunction));
+	transcribe_set.AddFunction(MakeIOScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                                WhisperTranscribeFunction));
 
 	// Version with BLOB
 	transcribe_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
+	    MakeIOScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
 
 	// Version with BLOB and model override
-	transcribe_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR},
-	                                                        LogicalType::VARCHAR, WhisperTranscribeBlobFunction));
+	transcribe_set.AddFunction(MakeIOScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                                WhisperTranscribeBlobFunction));
 
 	RegisterScalarFunction(
 	    loader, std::move(transcribe_set),
@@ -184,19 +100,19 @@ void RegisterTranscribeScalarFunctions(ExtensionLoader &loader) {
 
 	// Version with just file path
 	translate_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateFunction));
+	    MakeIOScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperTranslateFunction));
 
 	// Version with file path and model override
-	translate_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR},
-	                                                       LogicalType::VARCHAR, WhisperTranslateFunction));
+	translate_set.AddFunction(MakeIOScalarFunction({LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                               WhisperTranslateFunction));
 
 	// Version with BLOB
 	translate_set.AddFunction(
-	    MakeTranscribeScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranslateBlobFunction));
+	    MakeIOScalarFunction({LogicalType::BLOB}, LogicalType::VARCHAR, WhisperTranslateBlobFunction));
 
 	// Version with BLOB and model override
-	translate_set.AddFunction(MakeTranscribeScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR},
-	                                                       LogicalType::VARCHAR, WhisperTranslateBlobFunction));
+	translate_set.AddFunction(MakeIOScalarFunction({LogicalType::BLOB, LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                               WhisperTranslateBlobFunction));
 
 	RegisterScalarFunction(
 	    loader, std::move(translate_set),

@@ -75,3 +75,37 @@ statement error
 SELECT * FROM whisper_transcribe_segments('test/data/test_english.wav', 'tiny.en', 'auto', true);
 ----
 Translation requires a multilingual model
+
+# The model argument applies per row: a model column must not reuse the first row's model
+statement error
+SELECT whisper_transcribe(f, m)
+FROM (VALUES ('test/data/test_english.wav', 'tiny.en'), ('test/data/test_english.wav', 'invalid_model')) t(f, m);
+----
+Failed to load whisper model
+
+query I
+SELECT count(*) FROM (
+    SELECT whisper_transcribe(f, m) AS txt
+    FROM (VALUES ('test/data/test_english.wav', 'tiny.en'), ('test/data/test_english.wav', 'tiny.en')) t(f, m)
+) WHERE txt LIKE '%Americans%';
+----
+2
+
+# A NULL model yields NULL
+query I
+SELECT whisper_transcribe('test/data/test_english.wav', NULL::VARCHAR) IS NULL;
+----
+true
+
+# Concurrent transcriptions on the same cached model context: one row in each of 4 row groups, scanned in parallel
+statement ok
+SET threads = 4;
+
+statement ok
+CREATE TABLE row_groups AS SELECT range AS i FROM range(4 * 122880);
+
+query I
+SELECT count(*) FILTER (WHERE whisper_transcribe('test/data/test_english.wav', 'tiny.en') LIKE '%Americans%')
+FROM row_groups WHERE i % 122880 = 0;
+----
+4

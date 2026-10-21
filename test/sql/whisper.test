@@ -13,7 +13,7 @@ require whisper
 
 # Test whisper_version function returns expected extension version
 query I
-SELECT whisper_version() LIKE 'whisper extension v0.6.0 (%';
+SELECT whisper_version() LIKE 'whisper extension v0.7.0 (%';
 ----
 true
 
@@ -35,7 +35,7 @@ WHERE function_name LIKE 'whisper\_%' ESCAPE '\'
 query I
 SELECT count(*) FROM duckdb_functions()
 WHERE function_name LIKE 'whisper\_%' ESCAPE '\'
-  AND len(list_filter(parameters, p -> regexp_matches(p, '^col[0-9]+$'))) > 0;
+  AND len(list_filter(parameters, lambda p: regexp_matches(p, '^col[0-9]+$'))) > 0;
 ----
 0
 
@@ -44,3 +44,12 @@ SELECT parameters FROM duckdb_functions()
 WHERE function_name = 'whisper_transcribe_segments' AND len(parameters) = 4 AND parameter_types[1] = 'VARCHAR';
 ----
 [audio, model, language, translate]
+
+# Functions that read audio, record or call HTTP must not be constant folded (e.g. recording during EXPLAIN)
+query I
+SELECT count(*) FROM duckdb_functions()
+WHERE function_name IN ('whisper_transcribe', 'whisper_translate', 'whisper_record', 'whisper_record_translate',
+                        'whisper_record_auto', 'whisper_mic_level', 'whisper_voice_to_sql')
+  AND stability <> 'VOLATILE';
+----
+0

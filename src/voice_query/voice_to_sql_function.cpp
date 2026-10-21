@@ -153,6 +153,9 @@ static void VoiceToSqlFunction(DataChunk &args, ExpressionState &state, Vector &
 	idx_t count = args.size();
 	idx_t col_count = args.ColumnCount();
 
+	// Flatten so every argument can be indexed per row (constant and dictionary vectors included)
+	args.Flatten();
+
 	// Parse optional parameters
 	bool has_model = col_count > 0;
 	bool has_device = col_count > 1;
@@ -175,7 +178,7 @@ static void VoiceToSqlFunction(DataChunk &args, ExpressionState &state, Vector &
 		// Perform voice-to-sql with timeout
 		std::string generated_sql = PerformVoiceToSqlWithTimeout(context, local_config, device_id);
 
-		FlatVector::GetData<string_t>(result)[i] = StringVector::AddString(result, generated_sql);
+		FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, generated_sql);
 	}
 }
 
@@ -187,14 +190,15 @@ void RegisterVoiceToSqlFunction(ExtensionLoader &loader) {
 	ScalarFunctionSet voice_to_sql_set("whisper_voice_to_sql");
 
 	// No parameters - use defaults
-	voice_to_sql_set.AddFunction(ScalarFunction({}, LogicalType::VARCHAR, VoiceToSqlFunction));
+	voice_to_sql_set.AddFunction(MakeIOScalarFunction({}, LogicalType::VARCHAR, VoiceToSqlFunction));
 
 	// With model parameter
-	voice_to_sql_set.AddFunction(ScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, VoiceToSqlFunction));
+	voice_to_sql_set.AddFunction(
+	    MakeIOScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, VoiceToSqlFunction));
 
 	// With model and device_id parameters
 	voice_to_sql_set.AddFunction(
-	    ScalarFunction({LogicalType::VARCHAR, LogicalType::INTEGER}, LogicalType::VARCHAR, VoiceToSqlFunction));
+	    MakeIOScalarFunction({LogicalType::VARCHAR, LogicalType::INTEGER}, LogicalType::VARCHAR, VoiceToSqlFunction));
 
 	RegisterScalarFunction(
 	    loader, std::move(voice_to_sql_set),
