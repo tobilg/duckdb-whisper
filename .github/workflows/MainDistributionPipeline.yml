@@ -47,6 +47,8 @@ jobs:
           extension-name: whisper
           signing-key: ${{ secrets.EXTENSION_SIGNING_KEY }}
           upload-versioned: ${{ startsWith(github.ref, 'refs/tags/') }}
+          verify-runner-labels: >-
+            {"linux_amd64":"ubuntu-22.04","linux_arm64":"ubuntu-22.04-arm"}
 
   verify:
     needs: sign
@@ -58,6 +60,13 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     steps:
+      - name: Install Linux runtime dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libavformat58 libavcodec58 libavutil56 libswresample3 \
+            libsdl2-2.0-0 libgomp1
       - uses: tobilg/duckdb-extension-self-hosting@e8598b152b605b003b58caf45d8a2b0764eb1ca3 # v1.0.0
         with:
           mode: verify
