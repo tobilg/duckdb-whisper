@@ -69,6 +69,8 @@ static void ListModelsExecute(ClientContext &context, TableFunctionInput &data, 
 		state.current_idx++;
 		output_idx++;
 	}
+
+	output.CheckCardinality(output_idx);
 }
 
 // ============================================================================
@@ -153,6 +155,7 @@ static void ModelInfoExecute(ClientContext &context, TableFunctionInput &data, D
 	auto &state = data.global_state->Cast<ModelInfoState>();
 
 	if (state.returned) {
+		output.CheckCardinality(0);
 		return;
 	}
 
@@ -165,6 +168,7 @@ static void ModelInfoExecute(ClientContext &context, TableFunctionInput &data, D
 	output.data[4].Append(Value(config.language));
 	output.data[5].Append(Value::INTEGER(config.threads));
 
+	output.CheckCardinality(1);
 	state.returned = true;
 }
 
@@ -182,11 +186,12 @@ void RegisterModelFunctions(ExtensionLoader &loader) {
 	                            {"SELECT * FROM whisper_list_models() WHERE is_downloaded;"}, {"whisper", "model"}));
 
 	// whisper_download_model(model_name)
-	ScalarFunctionSet download_set("whisper_download_model");
-	download_set.AddFunction(
-	    MakeIOScalarFunction({LogicalType::VARCHAR}, LogicalType::VARCHAR, WhisperDownloadModelFunction));
+	ScalarFunction download_model("whisper_download_model", {LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                              WhisperDownloadModelFunction);
+	download_model.SetVolatile();
+	download_model.SetFallible();
 	RegisterScalarFunction(
-	    loader, std::move(download_set),
+	    loader, std::move(download_model),
 	    MakeFunctionDescription({"model_name"},
 	                            "Downloads a Whisper model into the whisper_model_path directory and returns a status "
 	                            "message. Does nothing if the model is already downloaded.",

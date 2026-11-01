@@ -33,6 +33,21 @@ SELECT whisper_get_voice_query_show_sql();
 ----
 true
 
+# Configuration getters must size constant vectors for every input chunk.
+statement ok
+SET disabled_optimizers = 'expression_rewriter';
+
+query I
+SELECT count(*) FROM range(5000)
+WHERE whisper_get_text_to_sql_url() = 'http://localhost:4000/generate-sql'
+  AND whisper_get_text_to_sql_timeout() = 60
+  AND whisper_get_voice_query_show_sql();
+----
+5000
+
+statement ok
+RESET disabled_optimizers;
+
 # Test device_id setting
 
 # Default device_id should be -1

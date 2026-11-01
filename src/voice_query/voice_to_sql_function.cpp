@@ -4,6 +4,7 @@
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/printer.hpp"
+#include "duckdb/common/vector/vector_writer.hpp"
 #include "duckdb/common/string_util.hpp"
 
 #include "function_description.hpp"
@@ -160,6 +161,8 @@ static void VoiceToSqlFunction(DataChunk &args, ExpressionState &state, Vector &
 	bool has_model = col_count > 0;
 	bool has_device = col_count > 1;
 
+	auto result_writer = FlatVector::Writer<string_t>(result, count);
+
 	for (idx_t i = 0; i < count; i++) {
 		WhisperConfig local_config = config;
 
@@ -178,7 +181,7 @@ static void VoiceToSqlFunction(DataChunk &args, ExpressionState &state, Vector &
 		// Perform voice-to-sql with timeout
 		std::string generated_sql = PerformVoiceToSqlWithTimeout(context, local_config, device_id);
 
-		FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, generated_sql);
+		result_writer.WriteValue(generated_sql);
 	}
 }
 

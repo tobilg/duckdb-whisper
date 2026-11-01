@@ -15,10 +15,7 @@ bump-version:
 # Custom test targets for whisper extension
 test_whisper: release
 	@echo "Running whisper extension tests..."
-	@for test in test/sql/whisper*.test; do \
-		echo "=== $$test ==="; \
-		WHISPER_TEST_MODEL=1 ./build/release/test/unittest "$$test"; \
-	done
+	@WHISPER_TEST_MODEL=1 ./build/release/test/unittest --keep-home 'test/sql/whisper*'
 
 test_whisper_quick: release
 	@echo "Running whisper tests (without transcription)..."

@@ -135,6 +135,8 @@ static void TranscribeSegmentsExecute(ClientContext &context, TableFunctionInput
 		state.current_segment++;
 		output_idx++;
 	}
+
+	output.CheckCardinality(output_idx);
 }
 
 void RegisterTranscribeTableFunctions(ExtensionLoader &loader) {

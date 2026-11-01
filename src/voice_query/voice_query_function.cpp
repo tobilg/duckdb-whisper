@@ -244,6 +244,7 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 	auto &state = data.global_state->Cast<VoiceQueryState>();
 
 	if (state.finished) {
+		output.CheckCardinality(0);
 		return;
 	}
 
@@ -264,6 +265,7 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 
 		if (!state.current_chunk || state.current_chunk->size() == 0) {
 			state.finished = true;
+			output.CheckCardinality(0);
 			return;
 		}
 	}
@@ -287,6 +289,8 @@ static void VoiceQueryExecute(ClientContext &context, TableFunctionInput &data, 
 		state.current_row++;
 		output_count++;
 	}
+
+	output.CheckCardinality(output_count);
 
 	// Check if we need to fetch more
 	if (state.current_row >= state.current_chunk->size()) {

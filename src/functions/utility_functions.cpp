@@ -30,10 +30,7 @@ static std::string FormatExtensionVersion(const std::string &version) {
 static void WhisperVersionFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	std::string version_info = "whisper extension " + FormatExtensionVersion(EXT_VERSION_WHISPER) +
 	                           " (whisper.cpp: " + std::string(whisper_version()) + ")";
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<string_t>(result);
-	*result_data = StringVector::AddString(result, version_info);
+	result.Reference(Value(version_info), count_t(args.size()));
 }
 
 // ============================================================================
@@ -114,6 +111,7 @@ static void AudioInfoExecute(ClientContext &context, TableFunctionInput &data, D
 	auto &state = data.global_state->Cast<AudioInfoState>();
 
 	if (state.returned) {
+		output.CheckCardinality(0);
 		return;
 	}
 
@@ -135,6 +133,7 @@ static void AudioInfoExecute(ClientContext &context, TableFunctionInput &data, D
 	output.data[4].Append(Value(metadata.format));
 	output.data[5].Append(Value::BIGINT(metadata.file_size));
 
+	output.CheckCardinality(1);
 	state.returned = true;
 }
 
@@ -151,10 +150,7 @@ static void WhisperGetDeviceIdFunction(DataChunk &args, ExpressionState &state, 
 		device_id = val.GetValue<int32_t>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<int32_t>(result);
-	*result_data = device_id;
+	result.Reference(Value::INTEGER(device_id), count_t(args.size()));
 }
 
 static void WhisperGetMaxDurationFunction(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -166,10 +162,7 @@ static void WhisperGetMaxDurationFunction(DataChunk &args, ExpressionState &stat
 		max_duration = val.GetValue<double>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<double>(result);
-	*result_data = max_duration;
+	result.Reference(Value::DOUBLE(max_duration), count_t(args.size()));
 }
 
 static void WhisperGetSilenceDurationFunction(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -181,10 +174,7 @@ static void WhisperGetSilenceDurationFunction(DataChunk &args, ExpressionState &
 		silence_duration = val.GetValue<double>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<double>(result);
-	*result_data = silence_duration;
+	result.Reference(Value::DOUBLE(silence_duration), count_t(args.size()));
 }
 
 static void WhisperGetSilenceThresholdFunction(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -196,10 +186,7 @@ static void WhisperGetSilenceThresholdFunction(DataChunk &args, ExpressionState 
 		silence_threshold = val.GetValue<double>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<double>(result);
-	*result_data = silence_threshold;
+	result.Reference(Value::DOUBLE(silence_threshold), count_t(args.size()));
 }
 
 static void WhisperGetConfigFunction(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -223,10 +210,7 @@ static void WhisperGetConfigFunction(DataChunk &args, ExpressionState &state, Ve
 	              ", voice_query_show_sql=" + (config.voice_query_show_sql ? "true" : "false");
 #endif
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<string_t>(result);
-	*result_data = StringVector::AddString(result, config_str);
+	result.Reference(Value(config_str), count_t(args.size()));
 }
 
 #ifdef WHISPER_ENABLE_VOICE_QUERY
@@ -239,10 +223,7 @@ static void WhisperGetTextToSqlUrlFunction(DataChunk &args, ExpressionState &sta
 		url = val.GetValue<string>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<string_t>(result);
-	*result_data = StringVector::AddString(result, url);
+	result.Reference(Value(url), count_t(args.size()));
 }
 
 static void WhisperGetTextToSqlTimeoutFunction(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -254,10 +235,7 @@ static void WhisperGetTextToSqlTimeoutFunction(DataChunk &args, ExpressionState 
 		timeout = val.GetValue<int32_t>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<int32_t>(result);
-	*result_data = timeout;
+	result.Reference(Value::INTEGER(timeout), count_t(args.size()));
 }
 
 static void WhisperGetVoiceQueryShowSqlFunction(DataChunk &args, ExpressionState &state, Vector &result) {
@@ -269,10 +247,7 @@ static void WhisperGetVoiceQueryShowSqlFunction(DataChunk &args, ExpressionState
 		show_sql = val.GetValue<bool>();
 	}
 
-	result.SetVectorType(VectorType::CONSTANT_VECTOR);
-	ConstantVector::SetNull(result, false);
-	auto result_data = ConstantVector::GetData<bool>(result);
-	*result_data = show_sql;
+	result.Reference(Value::BOOLEAN(show_sql), count_t(args.size()));
 }
 #endif
 

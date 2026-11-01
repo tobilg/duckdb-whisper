@@ -45,11 +45,15 @@ WHERE function_name = 'whisper_transcribe_segments' AND len(parameters) = 4 AND 
 ----
 [audio, model, language, translate]
 
-# Functions that read audio, record or call HTTP must not be constant folded (e.g. recording during EXPLAIN)
+# Operations that perform I/O must not run during constant folding.
 query I
 SELECT count(*) FROM duckdb_functions()
-WHERE function_name IN ('whisper_transcribe', 'whisper_translate', 'whisper_record', 'whisper_record_translate',
-                        'whisper_record_auto', 'whisper_mic_level', 'whisper_voice_to_sql')
-  AND stability <> 'VOLATILE';
+WHERE function_name IN ('whisper_download_model', 'whisper_transcribe', 'whisper_translate',
+                        'whisper_record', 'whisper_record_auto', 'whisper_record_translate',
+                        'whisper_mic_level', 'whisper_voice_to_sql')
+  AND NOT has_side_effects;
 ----
 0
+
+statement ok
+EXPLAIN SELECT whisper_download_model('invalid_model_name');

@@ -1,0 +1,48 @@
+# name: test/sql/whisper_vectors.test
+# description: Whisper result vectors retain their cardinality across chunks
+# group: [sql]
+
+require whisper
+
+# Exercise zero-argument functions on whole chunks instead of folding constants.
+statement ok
+SET disabled_optimizers = 'expression_rewriter';
+
+query I
+SELECT count(*) FROM range(5000)
+WHERE whisper_version() LIKE 'whisper extension %'
+  AND whisper_get_config() LIKE '%model=%'
+  AND whisper_get_device_id() = -1
+  AND whisper_get_max_duration() = 15
+  AND whisper_get_silence_duration() = 1
+  AND whisper_get_silence_threshold() = 0.001;
+----
+5000
+
+# Exercise nullable table output and its end-of-stream call without a model file.
+statement ok
+SET whisper_model_path = '__whisper_test_missing_models__';
+
+query III
+SELECT count(*), count(file_size), count(DISTINCT name)
+FROM whisper_list_models();
+----
+12	0	12
+
+query TTIII
+SELECT current_model, language, threads, is_downloaded, file_size
+FROM whisper_model_info();
+----
+base.en	auto	0	false	NULL
+
+# Joining table output to several chunks must retain every model row.
+query I
+SELECT count(*) FROM whisper_list_models(), range(5000);
+----
+60000
+
+statement ok
+RESET whisper_model_path;
+
+statement ok
+RESET disabled_optimizers;

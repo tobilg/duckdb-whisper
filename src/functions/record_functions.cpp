@@ -5,6 +5,7 @@
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/printer.hpp"
+#include "duckdb/common/vector/vector_writer.hpp"
 
 #include "audio_recorder.hpp"
 #include "function_description.hpp"
@@ -62,6 +63,8 @@ static void ListDevicesExecute(ClientContext &context, TableFunctionInput &data,
 		state.current_idx++;
 		output_idx++;
 	}
+
+	output.CheckCardinality(output_idx);
 }
 
 // ============================================================================
@@ -89,9 +92,11 @@ static void ExecuteFixedRecording(DataChunk &args, ExpressionState &state, Vecto
 	// Check for optional device_id parameter
 	bool has_device = args.ColumnCount() > 2;
 
+	auto result_writer = FlatVector::Writer<string_t>(result, count);
+
 	for (idx_t i = 0; i < count; i++) {
 		if (FlatVector::IsNull(duration_vec, i)) {
-			FlatVector::SetNull(result, i, true);
+			result_writer.WriteNull();
 			continue;
 		}
 		int32_t duration_seconds = FlatVector::GetData<int32_t>(duration_vec)[i];
@@ -141,7 +146,7 @@ static void ExecuteFixedRecording(DataChunk &args, ExpressionState &state, Vecto
 			                            transcription.error);
 		}
 
-		FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, transcription.full_text);
+		result_writer.WriteValue(transcription.full_text);
 	}
 }
 
@@ -169,9 +174,11 @@ static void WhisperMicLevelFunction(DataChunk &args, ExpressionState &state, Vec
 	auto &duration_vec = args.data[0];
 	bool has_device = args.ColumnCount() > 1;
 
+	auto result_writer = FlatVector::Writer<string_t>(result, count);
+
 	for (idx_t i = 0; i < count; i++) {
 		if (FlatVector::IsNull(duration_vec, i)) {
-			FlatVector::SetNull(result, i, true);
+			result_writer.WriteNull();
 			continue;
 		}
 		int32_t duration_seconds = FlatVector::GetData<int32_t>(duration_vec)[i];
@@ -225,9 +232,9 @@ static void WhisperMicLevelFunction(DataChunk &args, ExpressionState &state, Vec
 
 			std::string result_str = "Peak: " + std::to_string(max_amplitude) + ", RMS: " + std::to_string(rms) +
 			                         " (suggested threshold: " + std::to_string(rms * 0.5f) + ")";
-			FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, result_str);
+			result_writer.WriteValue(result_str);
 		} else {
-			FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, "No audio captured");
+			result_writer.WriteValue("No audio captured");
 		}
 	}
 }
@@ -262,9 +269,11 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 	bool has_threshold = col_count > 3;
 	bool has_device = col_count > 4;
 
+	auto result_writer = FlatVector::Writer<string_t>(result, count);
+
 	for (idx_t i = 0; i < count; i++) {
 		if (FlatVector::IsNull(max_duration_vec, i)) {
-			FlatVector::SetNull(result, i, true);
+			result_writer.WriteNull();
 			continue;
 		}
 		int32_t max_duration = FlatVector::GetData<int32_t>(max_duration_vec)[i];
@@ -323,7 +332,7 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 		}
 
 		if (pcm_data.empty()) {
-			FlatVector::SetNull(result, i, true);
+			result_writer.WriteNull();
 			continue;
 		}
 
@@ -333,7 +342,7 @@ static void WhisperRecordAutoFunction(DataChunk &args, ExpressionState &state, V
 			throw InvalidInputException("Transcription failed: " + transcription.error);
 		}
 
-		FlatVector::GetDataMutable<string_t>(result)[i] = StringVector::AddString(result, transcription.full_text);
+		result_writer.WriteValue(transcription.full_text);
 	}
 }
 
