@@ -3,18 +3,20 @@
 		"curl",
 		{
 			"name": "ffmpeg",
-			"platform": "osx"
+			"default-features": false
 		},
 		{
 			"name": "sdl2",
-			"platform": "osx"
+			"default-features": false
 		}
 	],
 	"vcpkg-configuration": {
 		"overlay-ports": [
+			"./vcpkg_ports",
 			"./extension-ci-tools/vcpkg_ports"
 		],
 		"overlay-triplets": [
+			"./vcpkg_triplets",
 			"./extension-ci-tools/toolchains"
 		]
 	}

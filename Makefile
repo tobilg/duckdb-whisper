@@ -4,6 +4,22 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 EXT_NAME=whisper
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
+# Use the same release triplets locally and in CI. The Linux triplets keep the
+# ALSA backend dynamically loaded while embedding FFmpeg and SDL2 themselves.
+ifeq ($(shell uname -s),Darwin)
+ifeq ($(shell uname -m),arm64)
+WHISPER_NATIVE_TRIPLET := arm64-osx-release
+else
+WHISPER_NATIVE_TRIPLET := x64-osx-release
+endif
+else ifeq ($(shell uname -m),aarch64)
+WHISPER_NATIVE_TRIPLET := arm64-linux-release
+else
+WHISPER_NATIVE_TRIPLET := x64-linux-release
+endif
+VCPKG_TARGET_TRIPLET ?= $(WHISPER_NATIVE_TRIPLET)
+VCPKG_HOST_TRIPLET ?= $(WHISPER_NATIVE_TRIPLET)
+
 # Include the Makefile from extension-ci-tools
 include extension-ci-tools/makefiles/duckdb_extension.Makefile
 
@@ -22,3 +38,4 @@ test_whisper_quick: release
 	@./build/release/test/unittest "test/sql/whisper.test"
 	@./build/release/test/unittest "test/sql/whisper_models.test"
 	@./build/release/test/unittest "test/sql/whisper_audio.test"
+	@./build/release/test/unittest "test/sql/whisper_audio_formats.test"

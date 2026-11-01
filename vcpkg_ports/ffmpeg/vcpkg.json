@@ -1,0 +1,21 @@
+{
+  "name": "ffmpeg",
+  "version": "8.1.2",
+  "port-version": 1,
+  "description": "Static audio decoding libraries for DuckDB Whisper",
+  "homepage": "https://ffmpeg.org",
+  "license": "LGPL-3.0-or-later",
+  "supports": "linux | osx",
+  "dependencies": [
+    "openssl",
+    {
+      "name": "vcpkg-tool-nasm",
+      "host": true,
+      "platform": "x86 | x64"
+    },
+    {
+      "name": "vcpkg-cmake-get-vars",
+      "host": true
+    }
+  ]
+}

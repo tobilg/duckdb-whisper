@@ -5,6 +5,22 @@ All notable changes to the DuckDB Whisper Extension will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-01
+
+### Changed
+
+- Statically link FFmpeg with WAV/PCM, MP3, FLAC, AAC, Vorbis, and Opus decoding, including HTTP and HTTPS input
+- Statically link SDL2 with video, rendering, joystick, haptic, and sensor support disabled
+- Pin audio dependencies and the x86 assembler through project vcpkg overlays
+
+### Fixed
+
+- Load Linux extensions without installing shared FFmpeg or SDL2 libraries, restoring verification on Ubuntu 24.04
+
+### Added
+
+- File and BLOB decoding tests for all bundled audio formats, plus build-time checks for shared audio dependencies
+
 ## [0.7.0] - 2026-10-21
 
 ### Changed

@@ -1,0 +1,14 @@
+{
+  "name": "vcpkg-tool-nasm",
+  "version-string": "3.01",
+  "description": "Host assembler for the static FFmpeg x86 builds",
+  "homepage": "https://www.nasm.us",
+  "license": "BSD-2-Clause",
+  "supports": "native & (linux | osx)",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake-get-vars",
+      "host": true
+    }
+  ]
+}

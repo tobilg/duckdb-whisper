@@ -9,3 +9,10 @@ or
 ```bash
 make test_debug
 ```
+
+`test/sql/whisper_audio_formats.test` checks all packaged audio formats through
+both file and BLOB input. It requires no model: successful decoding must reach
+the deliberately missing model, rather than failing to decode or returning empty
+audio. The short 440 Hz stereo fixtures are synthetic and can be regenerated with
+`python3 scripts/generate_audio_fixtures.py` using an FFmpeg CLI with MP3, native
+Vorbis, and Opus encoders. No encoder or FFmpeg executable is needed to run tests.

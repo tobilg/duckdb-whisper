@@ -1,0 +1,34 @@
+# name: test/sql/whisper_audio_formats.test
+# description: Packaged audio decoders handle files and BLOBs without a model
+# group: [sql]
+
+require whisper
+
+# Transcription decodes and resamples before opening the model. Reaching this
+# deliberately missing model proves decoding returned nonempty audio, without
+# requiring a model download, GPU, microphone, or network access in CI.
+statement ok
+SET whisper_model_path = '__whisper_test_missing_models__';
+
+foreach fixture pcm16.wav pcm24.wav float.wav pcm.aiff audio.mp3 audio.flac audio.aac audio.m4a vorbis.ogg opus.ogg opus.webm
+
+query T
+SELECT whisper_check_audio('test/data/audio/{fixture}');
+----
+OK
+
+statement error
+SELECT whisper_transcribe('test/data/audio/{fixture}', '__missing_audio_test_model__');
+----
+Failed to load whisper model
+
+statement error
+SELECT whisper_transcribe(content, '__missing_audio_test_model__')
+FROM read_blob('test/data/audio/{fixture}');
+----
+Failed to load whisper model
+
+endloop
+
+statement ok
+RESET whisper_model_path;

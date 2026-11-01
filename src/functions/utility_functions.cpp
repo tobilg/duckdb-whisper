@@ -13,7 +13,7 @@ namespace duckdb {
 
 // Extension version
 #ifndef EXT_VERSION_WHISPER
-#define EXT_VERSION_WHISPER "0.7.0"
+#define EXT_VERSION_WHISPER "0.7.1"
 #endif
 
 static std::string FormatExtensionVersion(const std::string &version) {

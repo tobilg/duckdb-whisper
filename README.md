@@ -6,13 +6,18 @@ Transcribe audio files directly from SQL queries in DuckDB, making it easy to pr
 
 ## Features
 
-- Transcribe audio files (WAV, MP3, FLAC, OGG, and more)
+- Transcribe WAV/PCM, MP3, FLAC, AAC (ADTS or M4A/MP4), Vorbis, and Opus audio (including Ogg and WebM)
 - Live recording and transcription from microphone
 - Voice-to-SQL: speak natural language questions, get query results
 - Support for all Whisper models (tiny, base, small, medium, large)
 - Detailed transcription segments with timestamps and confidence scores
 - Automatic language detection or specify target language
 - Works with file paths, BLOB data, or remote URLs
+
+FFmpeg and SDL2 are statically linked into the extension. No separate FFmpeg or
+SDL2 installation is required. Linux microphone recording still needs the host's
+audio stack (ALSA; PulseAudio/PipeWire backends are enabled when available at build
+time). SDL2 video, rendering, joystick, haptic, and sensor support are disabled.
 
 ## Installation
 
@@ -458,7 +463,7 @@ For developers who want to build the extension locally.
 
 ### Prerequisites
 
-- CMake 3.14+
+- CMake 3.22+, Python 3, and pkg-config
 - C++17 compiler
 - [vcpkg](https://github.com/microsoft/vcpkg) package manager
 
@@ -470,19 +475,26 @@ First, clone and bootstrap vcpkg (one-time setup):
 # Clone vcpkg (outside the project directory)
 git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
 cd ~/vcpkg
+git checkout cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3
 
 # Bootstrap vcpkg
 ./bootstrap-vcpkg.sh  # macOS/Linux
-# or
-.\bootstrap-vcpkg.bat  # Windows
 ```
 
-### Install Dependencies
+### Dependencies
 
-```bash
-# Install required dependencies
-~/vcpkg/vcpkg install ffmpeg sdl2 curl
-```
+The build installs dependencies automatically using this repository's vcpkg
+manifest, overlay ports, and release triplets. The overlays pin FFmpeg 8.1.2 and
+SDL2 2.32.10, build position-independent static libraries, and restrict them to
+audio decoding and capture. FFmpeg retains file, HTTP, and HTTPS input; its
+OpenSSL dependency is also linked statically. Unlisted codecs, encoders, video
+decoders, and filters are excluded. NASM is built as a host tool for x86 builds.
+
+Use the project overlays rather than installing the default vcpkg FFmpeg/SDL2
+ports or system shared libraries. Linux triplets build ALSA as a shared library
+for SDL2's runtime loading; it is not linked into the extension. The extension
+build checks that no FFmpeg, SDL2, or audio-backend shared-library dependency was
+introduced.
 
 ### Clone and Build
 
@@ -510,18 +522,13 @@ brew install cmake ninja pkg-config
 Install build essentials:
 
 ```bash
-sudo apt-get install build-essential cmake ninja-build pkg-config \
-    nasm autoconf automake libtool
+sudo apt-get install build-essential cmake ninja-build pkg-config python3 \
+    autoconf automake libtool
 ```
 
-#### Windows
-
-Use the Developer Command Prompt or PowerShell with vcpkg:
-
-```powershell
-$env:VCPKG_TOOLCHAIN_PATH="C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake"
-make release
-```
+The audio dependency overlays currently support Linux and macOS, matching the
+platforms built by CI. Windows and WebAssembly builds are not supported by these
+overlays.
 
 ### Build Options
 
@@ -543,6 +550,10 @@ make test_whisper_quick  # Quick tests (no model needed)
 ## License
 
 This extension is licensed under the MIT License.
+
+The bundled dependencies retain their own licenses: FFmpeg is LGPL-3.0-or-later
+and SDL2 uses the zlib license. Their license texts are installed by vcpkg under
+`share/ffmpeg/copyright` and `share/sdl2/copyright` in the dependency prefix.
 
 ## Acknowledgments
 

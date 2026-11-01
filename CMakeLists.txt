@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.22)
 
 # Set extension name here
 set(TARGET_NAME whisper)
@@ -6,7 +6,7 @@ set(TARGET_NAME whisper)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
-project(${TARGET_NAME} VERSION 0.7.0)
+project(${TARGET_NAME} VERSION 0.7.1)
 
 # Option to enable/disable audio recording (requires SDL2)
 option(WHISPER_ENABLE_RECORDING "Enable audio recording via SDL2" ON)
@@ -14,23 +14,38 @@ option(WHISPER_ENABLE_RECORDING "Enable audio recording via SDL2" ON)
 # Option to enable/disable voice-to-SQL feature (enabled by default)
 option(WHISPER_ENABLE_VOICE_QUERY "Enable voice-to-SQL feature" ON)
 
-# Find FFmpeg via pkg-config (installed via vcpkg or system)
+# The project vcpkg overlay builds only the supported audio decoders. Request
+# private dependencies too (notably OpenSSL for HTTPS), and verify the FFmpeg
+# archives explicitly. Keep the default lookup for system libraries such as
+# libm: embedding glibc's static archives in a loadable module is unsafe.
 find_package(PkgConfig REQUIRED)
+set(WHISPER_SAVED_PKG_CONFIG_ARGN "${PKG_CONFIG_ARGN}")
+list(APPEND PKG_CONFIG_ARGN --static)
 pkg_check_modules(
-  LIBAV
+  WHISPER_FFMPEG
   REQUIRED
   IMPORTED_TARGET
   libavformat
   libavcodec
   libswresample
   libavutil)
+set(PKG_CONFIG_ARGN "${WHISPER_SAVED_PKG_CONFIG_ARGN}")
+
+foreach(FFMPEG_LIBRARY avformat avcodec swresample avutil)
+  if(NOT pkgcfg_lib_WHISPER_FFMPEG_${FFMPEG_LIBRARY} MATCHES "\\.a$")
+    message(
+      FATAL_ERROR
+        "Static ${FFMPEG_LIBRARY} archive not found. Build with the project vcpkg overlays."
+    )
+  endif()
+endforeach()
 
 # FindPkgConfig exposes macOS frameworks as separate "-framework;Name" link
 # options. CMake de-duplicates the repeated -framework options, leaving all but
 # the first framework name as bare linker arguments. Keep each pair together so
 # repeated configuration and relinking produce a valid compiler command.
 if(APPLE)
-  get_target_property(LIBAV_LINK_OPTIONS PkgConfig::LIBAV
+  get_target_property(LIBAV_LINK_OPTIONS PkgConfig::WHISPER_FFMPEG
                       INTERFACE_LINK_OPTIONS)
   if(LIBAV_LINK_OPTIONS)
     set(LIBAV_GROUPED_LINK_OPTIONS)
@@ -55,34 +70,22 @@ if(APPLE)
     endif()
 
     set_property(
-      TARGET PkgConfig::LIBAV PROPERTY INTERFACE_LINK_OPTIONS
-                                       "${LIBAV_GROUPED_LINK_OPTIONS}")
+      TARGET PkgConfig::WHISPER_FFMPEG PROPERTY INTERFACE_LINK_OPTIONS
+                                                "${LIBAV_GROUPED_LINK_OPTIONS}")
   endif()
 endif()
 
-# Find SDL2 if recording is enabled Try CMake find_package first (vcpkg), then
-# fall back to pkg-config (system packages)
+# Recording must use the static SDL2 build with the unused subsystems disabled.
 if(WHISPER_ENABLE_RECORDING)
-  find_package(SDL2 QUIET)
-  if(TARGET SDL2::SDL2)
-    message(STATUS "SDL2 found via CMake - audio recording enabled")
-    add_definitions(-DWHISPER_ENABLE_RECORDING)
-    set(SDL2_LINK_TARGET SDL2::SDL2)
-  else()
-    # Try pkg-config for system-installed SDL2
-    pkg_check_modules(SDL2 IMPORTED_TARGET sdl2)
-    if(SDL2_FOUND)
-      message(STATUS "SDL2 found via pkg-config - audio recording enabled")
-      add_definitions(-DWHISPER_ENABLE_RECORDING)
-      set(SDL2_LINK_TARGET PkgConfig::SDL2)
-    else()
-      message(
-        WARNING
-          "SDL2 not found - audio recording disabled. Install SDL2 or set -DWHISPER_ENABLE_RECORDING=OFF"
-      )
-      set(WHISPER_ENABLE_RECORDING OFF)
-    endif()
+  find_package(SDL2 CONFIG REQUIRED)
+  if(NOT TARGET SDL2::SDL2-static)
+    message(
+      FATAL_ERROR
+        "Static SDL2 not found. Build with the project vcpkg overlays or set WHISPER_ENABLE_RECORDING=OFF."
+    )
   endif()
+  add_definitions(-DWHISPER_ENABLE_RECORDING)
+  set(SDL2_LINK_TARGET SDL2::SDL2-static)
 endif()
 
 # Find libcurl for voice-to-SQL if enabled
@@ -197,11 +200,22 @@ endif()
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_custom_command(
+  TARGET ${LOADABLE_EXTENSION_NAME}
+  POST_BUILD
+  COMMAND
+    ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_audio_linkage.py
+    $<TARGET_FILE:${LOADABLE_EXTENSION_NAME}>
+  VERBATIM)
+
 # Link dependencies for static extension
-target_link_libraries(${EXTENSION_NAME} whisper PkgConfig::LIBAV)
+target_link_libraries(${EXTENSION_NAME} whisper PkgConfig::WHISPER_FFMPEG)
 
 # Link dependencies for loadable extension
-target_link_libraries(${LOADABLE_EXTENSION_NAME} whisper PkgConfig::LIBAV)
+target_link_libraries(${LOADABLE_EXTENSION_NAME} whisper
+                      PkgConfig::WHISPER_FFMPEG)
 
 # Link SDL2 if recording is enabled
 if(WHISPER_ENABLE_RECORDING)
